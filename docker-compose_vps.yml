@@ -13,9 +13,9 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=raguser
-      - DB_PASSWORD=ragpass
-      - DB_NAME=ragdb
+      - DB_USER=${DB_USER:-raguser}
+      - DB_PASSWORD=${DB_PASSWORD:-ragpass}
+      - DB_NAME=${DB_NAME:-ragdb}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6334
       - QDRANT_COLLECTION=${QDRANT_COLLECTION:-semantic_docs}
@@ -57,15 +57,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: raguser
-      POSTGRES_PASSWORD: ragpass
-      POSTGRES_DB: ragdb
+      POSTGRES_USER: ${DB_USER:-raguser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ragpass}
+      POSTGRES_DB: ${DB_NAME:-ragdb}
     volumes:
       - pgdata_v2:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U raguser"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-raguser} -d ${DB_NAME:-ragdb}"]
       interval: 5s
       timeout: 5s
       retries: 20
