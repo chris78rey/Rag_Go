@@ -9,7 +9,7 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=raguser
-      - DB_PASSWORD=${DB_PASSWORD:-ragpass}
+      - DB_PASSWORD=ragpass
       - DB_NAME=ragdb
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6334
@@ -53,7 +53,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: raguser
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-ragpass}
+      POSTGRES_PASSWORD: ragpass
       POSTGRES_DB: ragdb
     volumes:
       - pgdata_v2:/var/lib/postgresql/data
