@@ -12,7 +12,11 @@ services:
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-small}
       - EMBEDDING_DIM=${EMBEDDING_DIM:-1536}
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      - DATABASE_URL=postgres://rag:ragpass@postgres:5432/ragdb?sslmode=disable
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-rag}
+      - DB_PASSWORD=${DB_PASSWORD:-ragpass}
+      - DB_NAME=${DB_NAME:-ragdb}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6334
       - QDRANT_COLLECTION=semantic_docs

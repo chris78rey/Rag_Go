@@ -6,14 +6,10 @@ services:
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-large}
       - JWT_SECRET=${JWT_SECRET}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=raguser
-      - DB_PASSWORD=${DB_PASSWORD:-ragpass}
-      - DB_NAME=ragdb
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6334
       - QDRANT_COLLECTION=${QDRANT_COLLECTION:-semantic_docs}
+      - DATABASE_URL=postgres://raguser:${DB_PASSWORD:-ragpass}@postgres:5432/ragdb?sslmode=disable
       - CHUNK_SIZE=${CHUNK_SIZE:-512}
       - CHUNK_OVERLAP=${CHUNK_OVERLAP:-64}
       - TOP_K=${TOP_K:-10}
@@ -29,14 +25,18 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
+      # Router HTTPS
       - "traefik.http.routers.${CLIENT_ID}-rag.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.${CLIENT_ID}-rag.entrypoints=https"
       - "traefik.http.routers.${CLIENT_ID}-rag.tls=true"
       - "traefik.http.routers.${CLIENT_ID}-rag.tls.certresolver=letsencrypt"
+      # Puerto interno
       - "traefik.http.services.${CLIENT_ID}-rag.loadbalancer.server.port=8080"
+      # Redirección HTTP → HTTPS
       - "traefik.http.routers.${CLIENT_ID}-rag-http.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.${CLIENT_ID}-rag-http.entrypoints=http"
       - "traefik.http.routers.${CLIENT_ID}-rag-http.middlewares=${CLIENT_ID}-redirect"
+      # Middleware
       - "traefik.http.middlewares.${CLIENT_ID}-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.${CLIENT_ID}-redirect.redirectscheme.permanent=true"
     restart: unless-stopped
