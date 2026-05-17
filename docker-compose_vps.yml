@@ -44,7 +44,7 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.9.0
     volumes:
-      - qdrant_storage:/qdrant/storage
+      - qdrant_v2:/qdrant/storage
     networks:
       - internal
     restart: unless-stopped
@@ -56,14 +56,14 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ragpass}
       POSTGRES_DB: ragdb
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata_v2:/var/lib/postgresql/data
     networks:
       - internal
     restart: unless-stopped
 
 volumes:
-  qdrant_storage:
-  pgdata:
+  qdrant_v2:
+  pgdata_v2:
   uploads:
 
 networks:
