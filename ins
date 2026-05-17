@@ -1,0 +1,125 @@
+Dar el salto a Go para este tipo de herramientas es una excelente decisión. Go brilla en la concurrencia, el manejo de streams y la construcción de binarios ligeros, lo que lo hace perfecto para un backend de IA rápido y limpio.
+
+Para alejarnos del nombre anterior y enfocarnos en la nueva arquitectura (puramente semántica), llamaremos a este proyecto **"Semantic Core RAG"**.
+
+Al eliminar la búsqueda léxica (FTS5/BM25) y depender **exclusivamente de Embeddings y LLM**, simplificamos enormemente la base de datos y la lógica de re-ranking, delegando el peso de la recuperación a una base de datos vectorial pura.
+
+Aquí tienes la idea general y la arquitectura diseñada para Go, con un fuerte enfoque en la **verificabilidad y observabilidad** del proceso.
+
+---
+
+### 1. Arquitectura de "Semantic Core RAG" (Go Stack)
+
+Al ser una arquitectura minimalista, puedes empaquetar todo en un solo contenedor Go comunicándose con un contenedor de base de datos vectorial.
+
+* **API / Enrutador:** `net/http` (con el enrutador nativo de Go 1.22+) o `chi` para mantenerlo ligero y estándar.
+* **Vector Store:** **Qdrant**. Dado que ya lo usabas, el cliente oficial de Go (`qdrant/go-client`) funciona perfecto mediante gRPC para máxima velocidad.
+* **LLM & Embeddings:** Llamadas HTTP directas (usando `net/http`) a OpenRouter u OpenAI. No necesitas librerías pesadas como LangChain; construir los prompts en Go usando `text/template` es mucho más predecible.
+* **Observabilidad (Verificación):** Uso estricto de `log/slog` (el logger estructurado oficial de Go) para emitir logs en formato JSON, y middlewares para rastrear el ID de cada petición.
+
+---
+
+### 2. Flujo de Ingesta (Carga y Verificación de Documentos)
+
+El proceso de carga debe ser asíncrono y altamente verificable para que sepas exactamente dónde falla un documento si algo sale mal.
+
+1. **Endpoint de Subida (`POST /api/upload`):** * Recibe el archivo (PDF, TXT).
+* Guarda el archivo temporalmente y responde al usuario inmediatamente con un `task_id` (UUID).
+
+
+2. **Procesamiento en Goroutines (Workers):**
+* Un *worker* en Go toma el archivo. Extrae el texto (puedes usar un wrapper de `pdftotext` mediante `os/exec`, similar a tu versión anterior, que es muy robusto).
+* **Chunking:** Divides el texto en Go usando expresiones regulares simples o conteo de palabras.
+
+
+3. **Embeddings en Lote (Batching):**
+* Agrupas los chunks (ej. de 16 en 16) y llamas a la API de Embeddings. Go facilita esto con canales (`channels`) y `errgroup` para paralelizar peticiones sin saturar la API externa.
+
+
+4. **Almacenamiento en Qdrant:**
+* Insertas los vectores generados junto con su *payload* (texto del chunk, nombre del archivo, número de página).
+
+
+5. **Verificación de Estado (`GET /api/task/{task_id}`):**
+* Mantienes un mapa en memoria o en un pequeño archivo/Redis con el estado de la tarea: `pending`, `extracting`, `embedding`, `completed`, `error`. Esto permite al frontend mostrar una barra de progreso real y verificar que el proceso ejecutó bien.
+
+
+
+---
+
+### 3. Flujo de Consulta (Búsqueda Semántica + LLM)
+
+Este flujo es lineal, rápido y fácil de trazar mediante logs.
+
+1. **Endpoint de Consulta (`POST /api/chat`):**
+* Recibe la pregunta del usuario.
+
+
+2. **Vectorización de la Pregunta:**
+* Llamada HTTP para convertir la pregunta en un vector (Embedding).
+
+
+3. **Búsqueda Semántica:**
+* Consulta a Qdrant enviando el vector de la pregunta. Pides los *Top K* resultados (ej. los 10 chunks con mayor similitud del coseno).
+
+
+4. **Inyección en el Prompt:**
+* Concatenas los textos recuperados. Si Qdrant devuelve muy baja similitud (score bajo), puedes registrar un *Warning* en el log indicando "Posible falta de contexto".
+
+
+5. **Generación con LLM (Streaming):**
+* Llamas a la API del LLM. Go maneja el streaming nativamente usando `http.Flusher` para enviar eventos SSE (Server-Sent Events) hacia el cliente a medida que el LLM genera los tokens.
+
+
+
+---
+
+### 4. ¿Cómo garantizar que "el proceso se ejecute bien" (Verificabilidad)?
+
+Para asegurar que todo el pipeline funciona y no falla en silencio, debes implementar estos patrones en Go:
+
+* **Contextos (Context Propagation):** Pasa `context.Context` a lo largo de todas tus funciones. Esto te permite cancelar peticiones si el usuario cierra el navegador o si OpenRouter se queda colgado, evitando fugas de memoria (goroutines zombis).
+* **Logs Estructurados por Etapas:**
+Usa `slog` para registrar eventos clave con metadatos. Si algo falla, sabrás exactamente en qué punto:
+```go
+slog.Info("iniciando_ingesta", "archivo", filename, "chunks", totalChunks)
+slog.Error("fallo_embedding", "archivo", filename, "batch", batchID, "error", err)
+slog.Info("busqueda_completada", "query", q, "fragmentos_recuperados", len(hits), "tiempo_ms", elapsed)
+
+```
+
+
+* **Respuestas de Diagnóstico en el Chat:**
+Al igual que en tu versión anterior, devuelve en la misma respuesta JSON o en el stream un bloque de "metadata" que le diga al usuario:
+* Cuántos fragmentos se recuperaron.
+* De qué documentos provienen.
+* El "score" semántico promedio. Si el score es muy bajo, el usuario verificará visualmente que la base de datos no tiene la respuesta.
+
+
+
+### Resumen de la Estructura del Proyecto en Go
+
+```text
+semantic-rag-go/
+├── cmd/
+│   └── server/
+│       └── main.go           # Punto de entrada, inicializa rutas y dependencias
+├── internal/
+│   ├── api/
+│   │   ├── handlers.go       # Endpoints HTTP (Upload, Chat, Status)
+│   │   └── sse.go            # Lógica para emitir Server-Sent Events
+│   ├── document/
+│   │   ├── parser.go         # Extracción de texto (PDF/TXT)
+│   │   └── chunker.go        # División de texto
+│   ├── embeddings/
+│   │   └── openrouter.go     # Cliente HTTP para generar vectores
+│   ├── vectorstore/
+│   │   └── qdrant.go         # Cliente gRPC para interactuar con Qdrant
+│   └── llm/
+│       └── generator.go      # Cliente HTTP para llamar al modelo y manejar el stream
+├── docker-compose.yml        # Levanta Go Server + Qdrant
+└── Dockerfile                # Build multi-stage de Go (binario muy ligero)
+
+```
+
+Este enfoque te dará un sistema mucho más limpio, fácil de debugear y extremadamente rápido de compilar y ejecutar, aprovechando únicamente la potencia semántica de los modelos modernos.

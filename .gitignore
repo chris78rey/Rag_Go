@@ -1,0 +1,16 @@
+# Binarios
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/server
+/server.exe
+
+# Directorios
+/tmp/
+/uploads/
+
+# Entorno
+.env
+repomix-output.xml

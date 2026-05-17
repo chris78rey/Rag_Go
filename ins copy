@@ -1,0 +1,284 @@
+Sí, se puede hacer sobre el proyecto actual, pero primero debe agregarse una capa de **usuarios, planes, permisos y cuotas**. Ahora mismo el backend ya tiene carga de documentos, consulta RAG y procesamiento con Qdrant, pero la subida está fija en `50 MB`, no existe login, no existe administrador, no existe separación por usuario y no hay control de consultas diarias.
+
+La arquitectura quedaría así:
+
+```text
+Aplicación Web RAG
+│
+├── Administrador
+│   ├── Crea usuarios finales
+│   ├── Activa/desactiva usuarios
+│   ├── Asigna plan: Básico o Ilimitado
+│   ├── Ve documentos cargados
+│   ├── Ve consumo diario de consultas
+│   └── Puede cargar documentos globales
+│
+├── Usuario final
+│   ├── Inicia sesión
+│   ├── Carga documentos propios
+│   ├── Consulta solo sus documentos
+│   └── Tiene límites según plan
+│
+├── Plan Básico
+│   ├── Máximo por archivo: 100 MB
+│   └── Consultas diarias: 40
+│
+└── Plan Ilimitado
+    ├── Máximo por archivo: 1 GB
+    └── Consultas diarias: ilimitadas
+```
+
+La base de datos ya no debería ser solo Qdrant. Qdrant debe quedarse para vectores, pero hace falta una base transaccional para usuarios, planes, documentos y consumos. La opción práctica sería **PostgreSQL**.
+
+```text
+Go Backend
+├── PostgreSQL
+│   ├── users
+│   ├── plans
+│   ├── documents
+│   ├── daily_usage
+│   └── ingestion_tasks
+│
+└── Qdrant
+    └── vectors + payload con user_id y document_id
+```
+
+Modelo mínimo recomendado:
+
+```sql
+CREATE TABLE plans (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(30) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    max_upload_mb INTEGER NOT NULL,
+    daily_query_limit INTEGER NULL
+);
+
+INSERT INTO plans (code, name, max_upload_mb, daily_query_limit)
+VALUES
+('basic', 'Plan Básico', 100, 40),
+('unlimited', 'Plan Ilimitado', 1024, NULL);
+
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name VARCHAR(150),
+    role VARCHAR(30) NOT NULL DEFAULT 'user',
+    plan_id INTEGER REFERENCES plans(id),
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE documents (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    filename TEXT NOT NULL,
+    original_filename TEXT NOT NULL,
+    size_bytes BIGINT NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'processing',
+    chunks INTEGER DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE daily_usage (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    usage_date DATE NOT NULL,
+    query_count INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(user_id, usage_date)
+);
+```
+
+El cambio más importante en Qdrant es que cada vector debe guardar el dueño del documento:
+
+```go
+payload := map[string]interface{}{
+    "text":        ch.Text,
+    "filename":    ch.Filename,
+    "chunk_index": ch.Index,
+    "user_id":     userID,
+    "document_id": documentID,
+}
+```
+
+Y al buscar, el sistema debe filtrar por `user_id`, para que un usuario no consulte documentos de otro usuario.
+
+```text
+Usuario A pregunta → Qdrant busca solo vectores con user_id = Usuario A
+Usuario B pregunta → Qdrant busca solo vectores con user_id = Usuario B
+Administrador → puede consultar global o filtrar por usuario
+```
+
+Los endpoints deberían quedar así:
+
+```text
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/me
+
+POST   /api/admin/users
+GET    /api/admin/users
+PATCH  /api/admin/users/{id}
+PATCH  /api/admin/users/{id}/plan
+
+POST   /api/documents/upload
+GET    /api/documents
+GET    /api/documents/{id}
+DELETE /api/documents/{id}
+
+POST   /api/chat
+GET    /api/usage/today
+GET    /api/task/{task_id}
+```
+
+La regla de subida debe cambiar de esto:
+
+```go
+maxFileMB: 50
+```
+
+A algo dinámico según el plan:
+
+```go
+func maxUploadBytesByPlan(planCode string) int64 {
+    switch planCode {
+    case "unlimited":
+        return 1024 << 20 // 1 GB
+    default:
+        return 100 << 20 // 100 MB
+    }
+}
+```
+
+Y antes de procesar el archivo:
+
+```go
+maxBytes := maxUploadBytesByPlan(currentUser.PlanCode)
+r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+```
+
+Para las consultas diarias:
+
+```go
+func canAskToday(userID string, planCode string, currentCount int) bool {
+    if planCode == "unlimited" {
+        return true
+    }
+
+    return currentCount < 40
+}
+```
+
+Flujo correcto del chat:
+
+```text
+1. Usuario envía pregunta.
+2. Backend valida token JWT.
+3. Backend revisa plan del usuario.
+4. Si es básico, revisa si ya llegó a 40 consultas del día.
+5. Si ya llegó, responde: límite diario alcanzado.
+6. Si puede consultar, genera embedding.
+7. Busca en Qdrant filtrando por user_id.
+8. Genera respuesta con LLM.
+9. Incrementa daily_usage.
+```
+
+Para la interfaz web, lo más simple y potente sería:
+
+```text
+Frontend: Nuxt 3 o Vue 3
+Backend: Go
+Base de datos: PostgreSQL
+Vectores: Qdrant
+Autenticación: JWT
+Almacenamiento temporal: carpeta local /uploads
+```
+
+Pantallas necesarias:
+
+```text
+Login
+
+Panel administrador
+├── Crear usuario
+├── Listado de usuarios
+├── Cambiar plan
+├── Activar/desactivar usuario
+├── Ver documentos por usuario
+└── Ver consumo diario
+
+Panel usuario final
+├── Cargar documentos
+├── Ver documentos cargados
+├── Estado del procesamiento
+├── Chat con documentos
+└── Contador de consultas restantes
+```
+
+La implementación debería hacerse en este orden:
+
+```text
+1. Agregar PostgreSQL al docker-compose.
+2. Crear tablas users, plans, documents y daily_usage.
+3. Crear login con JWT.
+4. Crear middleware de autenticación.
+5. Crear middleware de rol administrador.
+6. Cambiar /api/upload para que dependa del usuario logueado.
+7. Cambiar límite de subida según plan.
+8. Guardar user_id y document_id en Qdrant.
+9. Cambiar /api/chat para filtrar por user_id.
+10. Agregar contador de 40 consultas diarias para plan básico.
+11. Crear frontend web.
+```
+
+La regla principal es esta: **Qdrant no debe manejar usuarios ni planes**. Qdrant solo debe guardar vectores. La seguridad, permisos, límites y consumo diario deben vivir en PostgreSQL y en el backend Go.
+
+Para pedir la implementación al asistente de código, se puede usar este prompt:
+
+```text
+Actúa como ingeniero senior Go.
+
+Necesito convertir este proyecto RAG en una aplicación web multiusuario.
+
+Contexto:
+- Backend actual en Go.
+- Ya existen endpoints de upload, task status y chat.
+- Ya existe integración con Qdrant, OpenRouter embeddings y OpenRouter chat.
+- Actualmente no existe autenticación, usuarios, planes ni cuotas.
+- Qdrant debe seguir usándose solo como vector store.
+
+Objetivo:
+Agregar:
+1. PostgreSQL al docker-compose.
+2. Modelo de usuarios.
+3. Roles: admin y user.
+4. Planes:
+   - basic: máximo 100 MB por archivo y 40 consultas diarias.
+   - unlimited: máximo 1 GB por archivo y consultas ilimitadas.
+5. Login con JWT.
+6. Middleware de autenticación.
+7. Middleware para rutas admin.
+8. Panel API para que el administrador cree usuarios.
+9. Upload asociado al usuario autenticado.
+10. Chat filtrado por user_id en Qdrant.
+11. Contador diario de consultas.
+12. Bloqueo cuando el usuario básico supere 40 consultas diarias.
+
+Reglas:
+- No romper los endpoints existentes sin adaptar su uso.
+- Separar archivos por paquetes: auth, users, plans, usage, documents.
+- No meter lógica SQL dentro de handlers grandes.
+- Usar migraciones SQL simples.
+- Qdrant debe guardar en payload: user_id, document_id, filename, chunk_index y text.
+- La búsqueda debe filtrar por user_id.
+- El administrador puede ver todos los usuarios y documentos.
+- El usuario final solo puede ver sus documentos.
+
+Entrega:
+- Cambios en docker-compose.yml.
+- Migraciones SQL.
+- Código Go completo por archivo.
+- Endpoints documentados.
+- Ejemplos curl para probar login, crear usuario, subir documento y consultar.
+```
