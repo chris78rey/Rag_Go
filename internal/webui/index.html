@@ -1135,6 +1135,11 @@
       }
     }
 
+    function setDefaultTabForCurrentUser() {
+      if (!state.user) return;
+      state.activeTab = state.user.role === "admin" ? "summary" : "chat";
+    }
+
     function normalizePlan(planCode) {
       const value = String(planCode || "").toLowerCase();
       if (value === "premium" || value === "unlimited") return "premium";
@@ -1465,6 +1470,7 @@
 
       try {
         state.user = await api("/api/me");
+        setDefaultTabForCurrentUser();
         setView(true);
         renderProfile();
         await Promise.all([loadUsage(), loadDocuments(), loadUsers()]);
@@ -1487,6 +1493,7 @@
 
       setToken(data.token);
       state.user = data;
+      setDefaultTabForCurrentUser();
       setStatus("loginStatus", "");
       setView(true);
       renderProfile();
