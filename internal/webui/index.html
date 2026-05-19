@@ -486,6 +486,24 @@
       opacity: 1;
     }
 
+    .copy-last-btn {
+      background: #eef4ff;
+      color: var(--accent);
+      border: 1px solid #bfdbfe;
+      font-weight: 700;
+    }
+
+    .copy-last-btn:hover {
+      background: #dbeafe;
+      opacity: 1;
+    }
+
+    .copy-last-btn:disabled {
+      background: #edf2f7;
+      color: #94a3b8;
+      border-color: var(--line);
+    }
+
     .answer-text {
       white-space: pre-wrap;
       line-height: 1.6;
@@ -816,7 +834,10 @@
       <section class="panel tab-panel hidden" data-tab-panel="chat">
         <div class="panel-head">
           <h2 class="title">Consulta de documentos</h2>
-          <button class="secondary" id="clearChatBtn">Limpiar</button>
+          <div class="inline">
+            <button class="secondary copy-last-btn" id="copyLastAnswerBtn" disabled>Copiar ultima respuesta</button>
+            <button class="secondary" id="clearChatBtn">Limpiar</button>
+          </div>
         </div>
         <div class="panel-body stack">
           <div id="chatLog" class="chat-log">
@@ -928,6 +949,8 @@
       users: [],
       activeTab: "summary"
     };
+
+    let lastAssistantAnswer = "";
 
     const $ = (id) => document.getElementById(id);
 
@@ -1426,6 +1449,9 @@
     }
 
     function clearChat() {
+      lastAssistantAnswer = "";
+      $("copyLastAnswerBtn").disabled = true;
+      $("copyLastAnswerBtn").textContent = "Copiar ultima respuesta";
       $("chatLog").innerHTML = "";
       appendBubble("assistant", "Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la informacion exacta de tus archivos.");
       $("chatMeta").textContent = "";
@@ -1598,6 +1624,9 @@
 
       $("questionInput").value = "";
       $("chatMeta").textContent = "Consultando...";
+      lastAssistantAnswer = "";
+      $("copyLastAnswerBtn").disabled = true;
+      $("copyLastAnswerBtn").textContent = "Copiar ultima respuesta";
 
       const userBubble = appendBubble("user", query);
       userBubble.scrollIntoView({ block: "end" });
@@ -1657,6 +1686,8 @@
         const payload = JSON.parse(dataText);
         if (payload.content) {
           answer += payload.content;
+          lastAssistantAnswer = answer;
+          $("copyLastAnswerBtn").disabled = !answer.trim();
           assistantText.textContent = answer;
           $("chatLog").scrollTop = $("chatLog").scrollHeight;
         }
@@ -1686,6 +1717,7 @@
 
       if (!answer.trim()) {
         assistantText.textContent = "(sin respuesta)";
+        $("copyLastAnswerBtn").disabled = true;
       }
       await loadUsage();
     }
@@ -1819,6 +1851,24 @@
       appendBubble("assistant", err.message);
       $("chatMeta").textContent = "";
     }));
+    $("copyLastAnswerBtn").addEventListener("click", async () => {
+      if (!lastAssistantAnswer.trim()) {
+        alert("No hay respuesta para copiar");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(lastAssistantAnswer);
+        const btn = $("copyLastAnswerBtn");
+        const previous = btn.textContent;
+        btn.textContent = "Copiada";
+        window.setTimeout(() => {
+          btn.textContent = previous;
+        }, 1400);
+      } catch {
+        alert("No se pudo copiar la respuesta");
+      }
+    });
     $("clearChatBtn").addEventListener("click", clearChat);
     $("createUserBtn").addEventListener("click", () => createUser().catch((err) => setStatus("createUserStatus", err.message, true)));
     $("changePasswordBtn").addEventListener("click", () => changeOwnPassword().catch((err) => setStatus("changePasswordStatus", err.message, true)));
