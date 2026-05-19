@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/codex/semantic-rag-go/internal/auth"
 	"github.com/google/uuid"
@@ -33,13 +34,19 @@ type CreateUserRequest struct {
 }
 
 type UserResponse struct {
-	ID        string `json:"id"`
-	Email     string `json:"email"`
-	FullName  string `json:"full_name"`
-	Role      string `json:"role"`
-	PlanCode  string `json:"plan_code"`
-	Active    bool   `json:"active"`
-	CreatedAt string `json:"created_at"`
+	ID                    string `json:"id"`
+	Email                 string `json:"email"`
+	FullName              string `json:"full_name"`
+	Role                  string `json:"role"`
+	PlanCode              string `json:"plan_code"`
+	Active                bool   `json:"active"`
+	CreatedAt             string `json:"created_at"`
+	SubscriptionExpiresAt string `json:"subscription_expires_at"`
+}
+
+type RegisterPaymentRequest struct {
+	Amount float64 `json:"amount"`
+	Notes  string  `json:"notes"`
 }
 
 type UpdateUserRequest struct {
@@ -87,6 +94,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if planCode != auth.PlanCodeNormal && planCode != auth.PlanCodePremium {
 		planCode = auth.PlanCodeNormal
 	}
+	subscriptionExpiresAt := time.Now().UTC().AddDate(0, 0, 30).Format("2006-01-02T15:04:05.000Z")
 
 	hash, err := h.authSvc.HashPassword(req.Password)
 	if err != nil {
@@ -104,9 +112,9 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	userID := uuid.New().String()
 	_, err = h.db.ExecContext(r.Context(),
-		`INSERT INTO users (id, email, password_hash, full_name, role, plan_id)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		userID, req.Email, hash, req.FullName, role, planID,
+		`INSERT INTO users (id, email, password_hash, full_name, role, plan_id, subscription_expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		userID, req.Email, hash, req.FullName, role, planID, subscriptionExpiresAt,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
@@ -121,12 +129,14 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	slog.Info("usuario_creado", "user_id", userID, "email", req.Email, "role", role)
 
 	writeJSON(w, http.StatusCreated, UserResponse{
-		ID:       userID,
-		Email:    req.Email,
-		FullName: req.FullName,
-		Role:     role,
-		PlanCode: planCode,
-		Active:   true,
+		ID:                    userID,
+		Email:                 req.Email,
+		FullName:              req.FullName,
+		Role:                  role,
+		PlanCode:              planCode,
+		Active:                true,
+		CreatedAt:             time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		SubscriptionExpiresAt: subscriptionExpiresAt,
 	})
 }
 
@@ -134,7 +144,8 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.QueryContext(r.Context(),
 		`SELECT u.id, u.email, u.full_name, u.role, p.code, u.active,
-		        strftime('%Y-%m-%dT%H:%M:%fZ', u.created_at)
+		        strftime('%Y-%m-%dT%H:%M:%fZ', u.created_at),
+		        COALESCE(u.subscription_expires_at, '')
 		 FROM users u JOIN plans p ON u.plan_id = p.id
 		 ORDER BY u.created_at DESC`,
 	)
@@ -148,7 +159,7 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	var users []UserResponse
 	for rows.Next() {
 		var u UserResponse
-		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.PlanCode, &u.Active, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.PlanCode, &u.Active, &u.CreatedAt, &u.SubscriptionExpiresAt); err != nil {
 			slog.Error("escaneando_usuario", "error", err)
 			continue
 		}
@@ -360,6 +371,80 @@ func (h *Handler) GetPublicSetting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"key": key, "value": value})
+}
+
+// RegisterPayment registra un pago y extiende la suscripcion.
+func (h *Handler) RegisterPayment(w http.ResponseWriter, r *http.Request) {
+	userID := r.PathValue("id")
+
+	var req RegisterPaymentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body invalido"})
+		return
+	}
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "error iniciando transaccion"})
+		return
+	}
+	defer tx.Rollback()
+
+	var currentExp string
+	err = tx.QueryRowContext(r.Context(),
+		`SELECT COALESCE(subscription_expires_at, '')
+		 FROM users
+		 WHERE id = ?`,
+		userID,
+	).Scan(&currentExp)
+	if err == sql.ErrNoRows {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "usuario no encontrado"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "error leyendo vencimiento"})
+		return
+	}
+
+	var newExp string
+	err = tx.QueryRowContext(r.Context(),
+		`SELECT CASE
+			WHEN COALESCE(?, '') = '' THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+30 days')
+			WHEN datetime(?) > datetime('now') THEN strftime('%Y-%m-%dT%H:%M:%fZ', ?, '+30 days')
+			ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+30 days')
+		END`,
+		currentExp, currentExp, currentExp,
+	).Scan(&newExp)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "error calculando vencimiento"})
+		return
+	}
+
+	_, err = tx.ExecContext(r.Context(),
+		"UPDATE users SET subscription_expires_at = ? WHERE id = ?",
+		newExp, userID,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "actualizando vencimiento"})
+		return
+	}
+
+	_, err = tx.ExecContext(r.Context(),
+		"INSERT INTO payments (user_id, amount, valid_until, notes) VALUES (?, ?, ?, ?)",
+		userID, req.Amount, newExp, req.Notes,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "registrando pago"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "confirmando pago"})
+		return
+	}
+
+	slog.Info("pago_registrado", "user_id", userID, "nuevo_vencimiento", newExp)
+	writeJSON(w, http.StatusOK, map[string]string{"message": "pago registrado", "expires_at": newExp})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

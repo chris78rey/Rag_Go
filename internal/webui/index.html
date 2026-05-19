@@ -93,6 +93,29 @@
 
     .hidden { display: none !important; }
 
+    .banner {
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .banner.warning {
+      background: #fef08a;
+      color: #854d0e;
+      border: 1px solid #fde047;
+    }
+
+    .banner.danger {
+      background: #fecaca;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
     .wrap {
       width: min(1120px, calc(100% - 24px));
       margin: 0 auto;
@@ -532,6 +555,8 @@
       </div>
     </div>
 
+    <div id="subscriptionBanner" class="banner hidden"></div>
+
     <nav class="tabs" id="tabsBar" aria-label="Secciones de la aplicacion">
       <button class="tab-btn active" data-tab="summary" aria-selected="true">Resumen</button>
       <button class="tab-btn" data-tab="upload" aria-selected="false">Cargar</button>
@@ -777,6 +802,7 @@
                     <th>Rol</th>
                     <th>Plan</th>
                     <th>Activo</th>
+                    <th>Vencimiento</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1028,6 +1054,7 @@
         $("overviewUsage").textContent = "-";
         $("overviewUploadLimit").textContent = "-";
         $("overviewNextStep").textContent = "-";
+        hide($("subscriptionBanner"));
         return;
       }
 
@@ -1044,6 +1071,31 @@
       $("overviewUsage").textContent = `${usageText} (${usageNote})`;
       $("overviewUploadLimit").textContent = `${plan.uploadLimitMb} MB`;
       $("overviewNextStep").textContent = getNextStepLabel();
+
+      const banner = $("subscriptionBanner");
+      if (!user.subscription_expires_at) {
+        hide(banner);
+        return;
+      }
+
+      const expDate = new Date(user.subscription_expires_at);
+      if (Number.isNaN(expDate.getTime())) {
+        hide(banner);
+        return;
+      }
+
+      const daysLeft = Math.ceil((expDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysLeft <= 0) {
+        banner.className = "banner danger";
+        banner.innerHTML = `<span>Tu suscripcion expiro el ${expDate.toLocaleDateString("es-CO")}. La carga y consultas estan bloqueadas.</span>`;
+        show(banner);
+      } else if (daysLeft <= 5) {
+        banner.className = "banner warning";
+        banner.innerHTML = `<span>Tu suscripcion vence en ${daysLeft} dias (${expDate.toLocaleDateString("es-CO")}).</span>`;
+        show(banner);
+      } else {
+        hide(banner);
+      }
     }
 
     function renderTabs() {
@@ -1197,9 +1249,11 @@
             </select>
           </td>
           <td>${user.active ? "Si" : "No"}</td>
+          <td class="small">${escapeHtml(formatDate(user.subscription_expires_at))}</td>
           <td>
             <div class="table-actions">
               <button class="secondary" data-toggle-user="${escapeHtml(user.id)}">${user.active ? "Desactivar" : "Activar"}</button>
+              <button class="small" data-pay-user="${escapeHtml(user.id)}" style="background: #0f766e;">Renovar (+30d)</button>
             </div>
           </td>
         `;
@@ -1212,6 +1266,10 @@
 
       body.querySelectorAll("[data-plan-for]").forEach((select) => {
         select.addEventListener("change", () => updatePlan(select.getAttribute("data-plan-for"), select.value));
+      });
+
+      body.querySelectorAll("[data-pay-user]").forEach((btn) => {
+        btn.addEventListener("click", () => registerPayment(btn.getAttribute("data-pay-user")));
       });
     }
 
@@ -1525,6 +1583,25 @@
         body: JSON.stringify({ plan_code: planCode }),
       });
       await loadUsers();
+    }
+
+    async function registerPayment(userId) {
+      const amount = prompt("Ingresa el monto pagado (ej. 15.00):", "15.00");
+      if (amount === null) return;
+
+      const parsedAmount = parseFloat(amount);
+      if (Number.isNaN(parsedAmount)) return alert("Monto invalido");
+
+      try {
+        await api(`/api/admin/users/${encodeURIComponent(userId)}/payment`, {
+          method: "POST",
+          body: JSON.stringify({ amount: parsedAmount, notes: "Renovacion manual" }),
+        });
+        alert("Pago registrado. Suscripcion extendida por 30 dias.");
+        await loadUsers();
+      } catch (err) {
+        alert(err.message);
+      }
     }
 
     $("loginBtn").addEventListener("click", () => login().catch((err) => setStatus("loginStatus", err.message, true)));

@@ -101,6 +101,7 @@ func main() {
 	mux.Handle("GET /api/admin/users/{id}/documents", adminMw(http.HandlerFunc(adminHandler.GetUserDocuments)))
 	mux.Handle("GET /api/admin/settings", adminMw(http.HandlerFunc(adminHandler.GetSettings)))
 	mux.Handle("PUT /api/admin/settings", adminMw(http.HandlerFunc(adminHandler.UpdateSetting)))
+	mux.Handle("POST /api/admin/users/{id}/payment", adminMw(http.HandlerFunc(adminHandler.RegisterPayment)))
 
 	// Público (autenticado) — título del RAG visible para todos
 	mux.Handle("GET /api/settings/{key}", authMw(http.HandlerFunc(adminHandler.GetPublicSetting)))

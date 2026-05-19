@@ -88,11 +88,12 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token    string `json:"token"`
-	UserID   string `json:"user_id"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	PlanCode string `json:"plan_code"`
+	Token                 string `json:"token"`
+	UserID                string `json:"user_id"`
+	Email                 string `json:"email"`
+	Role                  string `json:"role"`
+	PlanCode              string `json:"plan_code"`
+	SubscriptionExpiresAt string `json:"subscription_expires_at"`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -104,13 +105,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 
-	var userID, hash, role, planCode string
+	var userID, hash, role, planCode, expiresAt string
 	var active bool
 	err := s.db.QueryRowContext(r.Context(),
-		`SELECT u.id, u.password_hash, u.role, p.code, u.active
+		`SELECT u.id, u.password_hash, u.role, p.code, u.active,
+		        COALESCE(u.subscription_expires_at, '')
 		 FROM users u JOIN plans p ON u.plan_id = p.id
 		 WHERE u.email = ?`, email,
-	).Scan(&userID, &hash, &role, &planCode, &active)
+	).Scan(&userID, &hash, &role, &planCode, &active, &expiresAt)
 
 	if err == sql.ErrNoRows {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Correo o contraseña incorrectos"})
@@ -144,11 +146,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	slog.Info("login_exitoso", "user_id", userID, "email", email)
 
 	writeJSON(w, http.StatusOK, LoginResponse{
-		Token:    token,
-		UserID:   userID,
-		Email:    email,
-		Role:     role,
-		PlanCode: planCode,
+		Token:                 token,
+		UserID:                userID,
+		Email:                 email,
+		Role:                  role,
+		PlanCode:              planCode,
+		SubscriptionExpiresAt: expiresAt,
 	})
 }
 
@@ -157,16 +160,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
 
-	var email, fullName, role, planCode string
+	var email, fullName, role, planCode, expiresAt string
 	var active bool
 	var createdAt string
 
 	err := s.db.QueryRowContext(r.Context(),
 		`SELECT u.email, u.full_name, u.role, p.code, u.active,
-		        strftime('%Y-%m-%dT%H:%M:%fZ', u.created_at)
+		        strftime('%Y-%m-%dT%H:%M:%fZ', u.created_at),
+		        COALESCE(u.subscription_expires_at, '')
 		 FROM users u JOIN plans p ON u.plan_id = p.id
 		 WHERE u.id = ?`, userID,
-	).Scan(&email, &fullName, &role, &planCode, &active, &createdAt)
+	).Scan(&email, &fullName, &role, &planCode, &active, &createdAt, &expiresAt)
 
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "usuario no encontrado"})
@@ -183,6 +187,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		"plan_code":  planCode,
 		"active":     active,
 		"created_at": createdAt,
+		"subscription_expires_at": expiresAt,
 	})
 }
 
@@ -309,6 +314,10 @@ func writeUploadQuotaError(w http.ResponseWriter, cfg planConfig, err error) {
 
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
+	if s.isSubscriptionExpired(r.Context(), userID) {
+		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "Tu suscripcion ha expirado. Por favor, renueva para continuar usando el servicio."})
+		return
+	}
 	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
 	cfg := s.resolvePlanConfig(r.Context(), planCode)
 
@@ -402,6 +411,10 @@ type UploadTextRequest struct {
 
 func (s *Server) handleUploadText(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
+	if s.isSubscriptionExpired(r.Context(), userID) {
+		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "Tu suscripcion ha expirado. Por favor, renueva para continuar usando el servicio."})
+		return
+	}
 	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
 	cfg := s.resolvePlanConfig(r.Context(), planCode)
 
@@ -762,6 +775,10 @@ type ChatMetadata struct {
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
+	if s.isSubscriptionExpired(r.Context(), userID) {
+		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "Tu suscripcion ha expirado. Por favor, renueva para continuar usando el servicio."})
+		return
+	}
 	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
 
 	var req ChatRequest
@@ -923,6 +940,24 @@ func (s *Server) incrementUsage(ctx context.Context, userID string) {
 	if err != nil {
 		slog.Error("incrementando_uso", "user_id", userID, "error", err)
 	}
+}
+
+func (s *Server) isSubscriptionExpired(ctx context.Context, userID string) bool {
+	var expired bool
+	err := s.db.QueryRowContext(ctx,
+		`SELECT CASE
+			WHEN COALESCE(subscription_expires_at, '') = '' THEN 1
+			ELSE datetime(subscription_expires_at) < datetime('now')
+		END
+		 FROM users
+		 WHERE id = ?`,
+		userID,
+	).Scan(&expired)
+	if err != nil {
+		slog.Warn("verificando_suscripcion", "user_id", userID, "error", err)
+		return true
+	}
+	return expired
 }
 
 // --- Plan helpers ---
