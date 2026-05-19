@@ -505,6 +505,34 @@
       align-items: center;
     }
 
+    .table-actions button {
+      white-space: nowrap;
+    }
+
+    .admin-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      min-width: 132px;
+    }
+
+    .table-actions button.small {
+      min-width: 0;
+      width: 100%;
+      color: #fff;
+      font-weight: 700;
+      padding: 7px 10px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.15;
+    }
+
+    .table-actions button.secondary {
+      min-width: 96px;
+    }
+
     .inline {
       display: inline-flex;
       gap: 8px;
@@ -1294,7 +1322,7 @@
           <td>${user.active ? "Si" : "No"}</td>
           <td class="small">${escapeHtml(formatDate(user.subscription_expires_at))}</td>
           <td>
-            <div class="table-actions">
+            <div class="table-actions admin-actions">
               <button class="secondary" data-toggle-user="${escapeHtml(user.id)}">${user.active ? "Desactivar" : "Activar"}</button>
               <button class="small" data-reset-password-user="${escapeHtml(user.id)}" style="background: #7c3aed;">Cambiar clave</button>
               <button class="small" data-pay-user="${escapeHtml(user.id)}" style="background: #0f766e;">Renovar (+30d)</button>
