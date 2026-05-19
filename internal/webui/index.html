@@ -250,6 +250,35 @@
       padding: 16px;
     }
 
+    .security-card {
+      background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+      border: 1px solid #b6ccf7;
+      box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.06);
+    }
+
+    .security-card .subpanel-head strong,
+    .security-card label {
+      color: #10203d;
+    }
+
+    .security-card .subpanel-head .small,
+    .security-card .small {
+      color: #31476b;
+    }
+
+    .security-card button {
+      background: #ffffff;
+      color: #1d4ed8;
+      border: 1px solid #1d4ed8;
+      box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+      font-weight: 700;
+    }
+
+    .security-card button:hover {
+      background: #eff6ff;
+      opacity: 1;
+    }
+
     .metric-card strong,
     .step-card strong {
       display: block;
@@ -598,7 +627,7 @@
               </article>
             </div>
 
-            <article class="info-card">
+            <article class="info-card security-card">
               <div class="subpanel-head">
                 <strong>Flujo recomendado</strong>
                 <span class="small">De arriba a abajo</span>
