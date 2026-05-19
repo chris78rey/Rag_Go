@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Semantic Core RAG</title>
+  <title>Asistente Documental</title>
   <style>
     :root {
       --bg: #eef2f7;
@@ -498,16 +498,16 @@
 <body>
   <main id="loginView" class="login-shell">
     <section class="panel login-card">
-      <h1>Semantic Core RAG</h1>
-      <p class="muted">Una sola app Go sirviendo login, carga de documentos y chat. Sin capa web separada.</p>
+      <h1>Asistente Documental</h1>
+      <p class="muted">Ingresa para analizar, consultar y extraer informacion de tus documentos de forma segura.</p>
       <div class="stack">
         <label>
           Email
-          <input id="emailInput" type="email" autocomplete="username" placeholder="admin@rag.local" />
+          <input id="emailInput" type="email" autocomplete="username" placeholder="Correo" />
         </label>
         <label>
           Password
-          <input id="passwordInput" type="password" autocomplete="current-password" placeholder="admin123" />
+          <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Contraseña" />
         </label>
         <button id="loginBtn">Entrar</button>
         <div id="loginStatus" class="status"></div>
@@ -520,8 +520,8 @@
       <div class="brand">
         <div class="mark">R</div>
         <div>
-          <strong>Semantic Core RAG</strong>
-          <span>UI simple, misma capa que Go</span>
+          <strong>Asistente Documental</strong>
+          <span>Plataforma de analisis documental</span>
         </div>
       </div>
       <div class="userbar">
@@ -543,8 +543,8 @@
     <section class="section panel hero-panel tab-panel" data-tab-panel="summary">
       <div class="panel-head">
         <div>
-          <h2 class="title">Como funciona hoy</h2>
-          <p class="muted">Todo vive en la misma capa Go. La vista esta dividida por pestañas para que el flujo sea obvio.</p>
+          <h2 class="title">Como funciona</h2>
+          <p class="muted">Ingresa para analizar, consultar y extraer informacion de tus documentos de forma segura.</p>
         </div>
       </div>
       <div class="panel-body">
@@ -590,14 +590,14 @@
                   <div class="step-num">2</div>
                   <div>
                     <strong>Procesar</strong>
-                    <div class="small">El documento pasa por chunks y embeddings hasta quedar listo.</div>
+                    <div class="small">El sistema lee, clasifica y archiva el contenido del documento para que este listo para responder preguntas.</div>
                   </div>
                 </div>
                 <div class="step-card">
                   <div class="step-num">3</div>
                   <div>
                     <strong>Consultar</strong>
-                    <div class="small">Haz preguntas y revisa la respuesta con contexto recuperado.</div>
+                    <div class="small">Haz preguntas y recibe respuestas precisas basadas unicamente en los archivos que subiste.</div>
                   </div>
                 </div>
                 <div class="step-card">
@@ -631,7 +631,7 @@
                 <span class="small">Lo que importa hoy</span>
               </div>
               <div class="subpanel-body stack">
-                <div class="small">La carga y el chat usan la misma autenticacion y el mismo backend.</div>
+                <div class="small">Tus documentos y consultas son completamente privados y estan protegidos en tu sesion.</div>
                 <div class="small">Si un documento sigue en proceso, el chat aun no lo puede usar bien.</div>
                 <div class="small">La tabla de documentos muestra progreso real por tarea.</div>
               </div>
@@ -690,12 +690,12 @@
 
       <section class="panel tab-panel hidden" data-tab-panel="chat">
         <div class="panel-head">
-          <h2 class="title">Chat RAG</h2>
+          <h2 class="title">Consulta de documentos</h2>
           <button class="secondary" id="clearChatBtn">Limpiar</button>
         </div>
         <div class="panel-body stack">
           <div id="chatLog" class="chat-log">
-            <div class="bubble assistant">Haz una pregunta sobre tus documentos. La respuesta se genera con el contexto recuperado.</div>
+            <div class="bubble assistant">Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la informacion exacta de tus archivos.</div>
           </div>
           <label>
             Pregunta
@@ -718,7 +718,7 @@
             <tr>
               <th>Archivo</th>
               <th>Estado</th>
-              <th>Chunks</th>
+              <th>Partes procesadas</th>
               <th>Progreso</th>
               <th>Fecha</th>
               <th></th>
@@ -938,6 +938,44 @@
       }
     }
 
+    function formatTaskStatusLabel(status) {
+      switch (String(status || "").toLowerCase()) {
+        case "extracting":
+          return "Extrayendo contenido";
+        case "embedding":
+          return "Analizando texto";
+        case "storing":
+          return "Guardando resultados";
+        case "completed":
+          return "Completado";
+        case "error":
+          return "Error";
+        case "processing":
+          return "Procesando";
+        default:
+          return String(status || "-");
+      }
+    }
+
+    function formatDocumentStatusLabel(status) {
+      switch (String(status || "").toLowerCase()) {
+        case "processing":
+          return "Procesando";
+        case "completed":
+          return "Listo";
+        case "extracting":
+          return "Extrayendo contenido";
+        case "embedding":
+          return "Analizando texto";
+        case "storing":
+          return "Guardando resultados";
+        case "error":
+          return "Error";
+        default:
+          return String(status || "-");
+      }
+    }
+
     function setView(loggedIn) {
       if (loggedIn) {
         hide($("loginView"));
@@ -1098,7 +1136,7 @@
           : (doc.status === "completed" ? 100 : 0);
         const chunkLabel = total > 0 ? `${processed}/${total}` : `${chunks}`;
         const progressLabel = doc.status === "completed"
-          ? "100%"
+          ? "Listo"
           : total > 0
             ? `${percent}%`
             : (doc.status === "processing" ? "Procesando" : "-");
@@ -1109,7 +1147,7 @@
             <div><strong>${escapeHtml(doc.original_filename || doc.filename || "Documento")}</strong></div>
             <div class="small">${escapeHtml(doc.id)}</div>
           </td>
-          <td>${escapeHtml(doc.status || "-")}</td>
+          <td>${escapeHtml(formatDocumentStatusLabel(doc.status))}</td>
           <td>${escapeHtml(chunkLabel)}</td>
           <td>
             <div class="progress-wrap">
@@ -1188,7 +1226,7 @@
 
     function clearChat() {
       $("chatLog").innerHTML = "";
-      appendBubble("assistant", "Haz una pregunta sobre tus documentos. La respuesta se genera con el contexto recuperado.");
+      appendBubble("assistant", "Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la informacion exacta de tus archivos.");
       $("chatMeta").textContent = "";
     }
 
@@ -1280,9 +1318,11 @@
           ? Math.max(0, Math.min(100, progress || Math.round((completed * 100) / total)))
           : (task.status === "completed" ? 100 : 0);
         const label = hasChunks
-          ? `${completed}/${total} (${displayProgress}%)`
+          ? `${completed} de ${total} partes (${displayProgress}%)`
           : (task.status === "completed" ? "100%" : "Procesando...");
-        statusEl.textContent = `Estado: ${task.status}${hasChunks ? ` | chunks: ${completed}/${total}` : ""}`;
+        statusEl.textContent = hasChunks
+          ? `Estado: ${formatTaskStatusLabel(task.status)} | Avance: ${completed} de ${total} partes`
+          : `Estado: ${formatTaskStatusLabel(task.status)}`;
         if (hasChunks) {
           setProgress(trackId, fillId, noteId, displayProgress, label, false);
         } else if (task.status === "completed") {
@@ -1292,7 +1332,7 @@
         }
         if (task.status === "completed") {
           setProgress(trackId, fillId, noteId, 100, "100%", false);
-          statusEl.textContent = "Estado: completed | Proceso terminado";
+          statusEl.textContent = "Estado: Completado | Proceso terminado";
           await Promise.all([loadDocuments(), loadUsage()]);
           setTimeout(() => setProgress(trackId, fillId, noteId, null), 1500);
           return;
@@ -1400,7 +1440,7 @@
           try {
             metadata = JSON.parse(dataText);
             const fuentes = Array.isArray(metadata.fuentes) ? metadata.fuentes.join(", ") : "-";
-            $("chatMeta").textContent = `Fragmentos: ${metadata.fragmentos_recuperados || metadata.Fragments || 0} | Fuentes: ${fuentes} | Calidad: ${metadata.calidad_contexto || metadata.ContextQuality || "-"}`;
+            $("chatMeta").textContent = `Párrafos consultados: ${metadata.fragmentos_recuperados || metadata.Fragments || 0} | Archivos base: ${fuentes} | Nivel de coincidencia: ${metadata.calidad_contexto || metadata.ContextQuality || "-"}`;
           } catch {
             $("chatMeta").textContent = "Se recibio metadata";
           }

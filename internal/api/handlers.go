@@ -98,7 +98,7 @@ type LoginResponse struct {
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body inválido"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Solicitud inválida"})
 		return
 	}
 
@@ -113,7 +113,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	).Scan(&userID, &hash, &role, &planCode, &active)
 
 	if err == sql.ErrNoRows {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "credenciales inválidas"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Correo o contraseña incorrectos"})
 		return
 	}
 	if err != nil {
@@ -125,12 +125,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	planCode = auth.NormalizePlanCode(planCode)
 
 	if !active {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "usuario desactivado"})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "Tu cuenta está desactivada"})
 		return
 	}
 
 	if !s.authSvc.CheckPassword(hash, req.Password) {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "credenciales inválidas"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Correo o contraseña incorrectos"})
 		return
 	}
 
@@ -389,7 +389,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		TaskID:     taskID,
 		DocumentID: documentID,
 		Filename:   header.Filename,
-		Message:    "Documento recibido. Procesando...",
+		Message:    "Documento recibido. Analizando contenido...",
 	})
 }
 
@@ -420,7 +420,7 @@ func (s *Server) handleUploadText(w http.ResponseWriter, r *http.Request) {
 
 	var req UploadTextRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body inválido"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Solicitud inválida"})
 		return
 	}
 
@@ -472,7 +472,7 @@ func (s *Server) handleUploadText(w http.ResponseWriter, r *http.Request) {
 		TaskID:     taskID,
 		DocumentID: documentID,
 		Filename:   title + ".txt",
-		Message:    "Texto recibido. Indexando...",
+		Message:    "Texto recibido. Analizando contenido...",
 	})
 }
 
@@ -766,11 +766,11 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	var req ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body debe contener 'query'"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "La consulta debe incluir un texto"})
 		return
 	}
 	if strings.TrimSpace(req.Query) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "query no puede estar vacía"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "La consulta no puede estar vacía"})
 		return
 	}
 
@@ -782,7 +782,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		count := s.getTodayQueryCount(ctx, userID)
 		if count >= limit {
 			writeJSON(w, http.StatusTooManyRequests, map[string]string{
-				"error": "límite diario de consultas alcanzado (50/50). Espera hasta mañana o actualiza tu plan.",
+				"error": "Límite diario de consultas alcanzado. Espera hasta mañana o actualiza tu plan.",
 			})
 			return
 		}
@@ -793,7 +793,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	queryVector, _, err := s.embClient.Embed(ctx, []string{req.Query})
 	if err != nil {
 		slog.Error("error_embedding_query", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "generando embedding"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Analizando la consulta"})
 		return
 	}
 
@@ -801,7 +801,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	results, err := s.vsClient.SearchByUser(ctx, queryVector, userID, s.topK)
 	if err != nil {
 		slog.Error("error_busqueda", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "buscando documentos"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Buscando coincidencias en tus documentos"})
 		return
 	}
 
