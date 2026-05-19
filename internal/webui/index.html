@@ -161,6 +161,124 @@
       gap: 16px;
     }
 
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 12px 0 16px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .tab-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-weight: 600;
+    }
+
+    .tab-btn:hover {
+      background: rgba(29, 78, 216, 0.06);
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 10px 22px rgba(29, 78, 216, 0.18);
+    }
+
+    .tab-panel {
+      margin-top: 16px;
+    }
+
+    .hero-panel {
+      background:
+        linear-gradient(135deg, rgba(29, 78, 216, 0.08), transparent 36%),
+        rgba(255, 255, 255, 0.94);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .metric-card,
+    .step-card,
+    .info-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .metric-card strong,
+    .step-card strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .metric-value {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+      margin: 6px 0 2px;
+    }
+
+    .step-num {
+      display: inline-grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .subpanel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .subpanel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 0;
+    }
+
+    .subpanel-body {
+      padding: 16px;
+    }
+
     .panel {
       background: rgba(255, 255, 255, 0.92);
       border: 1px solid var(--line);
@@ -324,22 +442,9 @@
       margin-top: 16px;
     }
 
-    details {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: rgba(255, 255, 255, 0.92);
-      box-shadow: var(--shadow);
-      overflow: hidden;
+    #workspaceGrid.single-pane {
+      grid-template-columns: 1fr;
     }
-
-    summary {
-      cursor: pointer;
-      list-style: none;
-      padding: 16px 18px;
-      font-weight: 650;
-    }
-
-    summary::-webkit-details-marker { display: none; }
 
     .table-actions {
       display: flex;
@@ -366,7 +471,7 @@
     }
 
     @media (max-width: 920px) {
-      .grid, .split {
+      .grid, .split, .hero-grid, .overview-grid {
         grid-template-columns: 1fr;
       }
 
@@ -377,6 +482,15 @@
 
       .userbar {
         justify-content: flex-start;
+      }
+
+      .tabs {
+        gap: 8px;
+      }
+
+      .tab-btn {
+        flex: 1 1 calc(50% - 8px);
+        justify-content: center;
       }
     }
   </style>
@@ -418,8 +532,117 @@
       </div>
     </div>
 
-    <div class="grid">
-      <section class="panel">
+    <nav class="tabs" id="tabsBar" aria-label="Secciones de la aplicacion">
+      <button class="tab-btn active" data-tab="summary" aria-selected="true">Resumen</button>
+      <button class="tab-btn" data-tab="upload" aria-selected="false">Cargar</button>
+      <button class="tab-btn" data-tab="chat" aria-selected="false">Consultar</button>
+      <button class="tab-btn" data-tab="docs" aria-selected="false">Documentos</button>
+      <button class="tab-btn hidden" data-tab="admin" aria-selected="false">Administracion</button>
+    </nav>
+
+    <section class="section panel hero-panel tab-panel" data-tab-panel="summary">
+      <div class="panel-head">
+        <div>
+          <h2 class="title">Como funciona hoy</h2>
+          <p class="muted">Todo vive en la misma capa Go. La vista esta dividida por pestañas para que el flujo sea obvio.</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="hero-grid">
+          <div class="stack">
+            <div class="overview-grid">
+              <article class="metric-card">
+                <span class="small">Sesion</span>
+                <div id="overviewIdentity" class="metric-value">-</div>
+                <p class="small">Usuario, rol y plan activos.</p>
+              </article>
+              <article class="metric-card">
+                <span class="small">Uso de hoy</span>
+                <div id="overviewUsage" class="metric-value">-</div>
+                <p class="small">Consumo diario y cuota disponible.</p>
+              </article>
+              <article class="metric-card">
+                <span class="small">Carga permitida</span>
+                <div id="overviewUploadLimit" class="metric-value">-</div>
+                <p class="small">Limite aplicado por el plan del usuario.</p>
+              </article>
+              <article class="metric-card">
+                <span class="small">Siguiente paso</span>
+                <div id="overviewNextStep" class="metric-value">-</div>
+                <p class="small">Accion recomendada para continuar.</p>
+              </article>
+            </div>
+
+            <article class="info-card">
+              <div class="subpanel-head">
+                <strong>Flujo recomendado</strong>
+                <span class="small">De arriba a abajo</span>
+              </div>
+              <div class="subpanel-body stack">
+                <div class="step-card">
+                  <div class="step-num">1</div>
+                  <div>
+                    <strong>Cargar</strong>
+                    <div class="small">Sube un archivo o pega texto para indexarlo.</div>
+                  </div>
+                </div>
+                <div class="step-card">
+                  <div class="step-num">2</div>
+                  <div>
+                    <strong>Procesar</strong>
+                    <div class="small">El documento pasa por chunks y embeddings hasta quedar listo.</div>
+                  </div>
+                </div>
+                <div class="step-card">
+                  <div class="step-num">3</div>
+                  <div>
+                    <strong>Consultar</strong>
+                    <div class="small">Haz preguntas y revisa la respuesta con contexto recuperado.</div>
+                  </div>
+                </div>
+                <div class="step-card">
+                  <div class="step-num">4</div>
+                  <div>
+                    <strong>Administrar</strong>
+                    <div class="small">Solo para admin: usuarios, planes y activacion.</div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <aside class="stack">
+            <article class="info-card">
+              <div class="subpanel-head">
+                <strong>Accesos rapidos</strong>
+                <span class="small">Ir directo a la tarea</span>
+              </div>
+              <div class="subpanel-body quick-actions">
+                <button class="secondary" data-jump-tab="upload">Ir a cargar</button>
+                <button class="secondary" data-jump-tab="chat">Ir a consultar</button>
+                <button class="secondary" data-jump-tab="docs">Ver documentos</button>
+                <button class="secondary hidden" data-jump-tab="admin">Abrir administracion</button>
+              </div>
+            </article>
+
+            <article class="info-card">
+              <div class="subpanel-head">
+                <strong>Notas operativas</strong>
+                <span class="small">Lo que importa hoy</span>
+              </div>
+              <div class="subpanel-body stack">
+                <div class="small">La carga y el chat usan la misma autenticacion y el mismo backend.</div>
+                <div class="small">Si un documento sigue en proceso, el chat aun no lo puede usar bien.</div>
+                <div class="small">La tabla de documentos muestra progreso real por tarea.</div>
+              </div>
+            </article>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid" id="workspaceGrid">
+      <section class="panel tab-panel hidden" data-tab-panel="upload">
         <div class="panel-head">
           <h2 class="title">Subir documento</h2>
           <span class="small">PDF, TXT o MD</span>
@@ -465,7 +688,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel tab-panel hidden" data-tab-panel="chat">
         <div class="panel-head">
           <h2 class="title">Chat RAG</h2>
           <button class="secondary" id="clearChatBtn">Limpiar</button>
@@ -484,7 +707,7 @@
       </section>
     </div>
 
-    <section class="section panel">
+    <section class="section panel tab-panel hidden" data-tab-panel="docs">
       <div class="panel-head">
         <h2 class="title">Mis documentos</h2>
         <button class="secondary" id="refreshDocsBtn">Refrescar</button>
@@ -507,8 +730,13 @@
       </div>
     </section>
 
-    <details id="adminPanel" class="section hidden">
-      <summary>Administración básica</summary>
+    <section id="adminPanel" class="section panel tab-panel hidden" data-tab-panel="admin">
+      <div class="panel-head">
+        <div>
+          <h2 class="title">Administracion</h2>
+          <p class="muted">Solo para administradores. Gestion de usuarios y planes en una vista separada.</p>
+        </div>
+      </div>
       <div class="panel-body">
         <div class="grid" style="grid-template-columns: 1fr 1fr;">
           <section class="panel" style="box-shadow: none; background: #fff;">
@@ -559,7 +787,7 @@
           </section>
         </div>
       </div>
-    </details>
+    </section>
 
     <div class="footer-note">Misma origin, token en localStorage y UI sin dependencia de otro servidor.</div>
   </main>
@@ -571,7 +799,8 @@
       user: null,
       documents: [],
       usage: null,
-      users: []
+      users: [],
+      activeTab: "summary"
     };
 
     const $ = (id) => document.getElementById(id);
@@ -719,30 +948,135 @@
       }
     }
 
-    function renderProfile() {
-      if (!state.user) {
-        $("profileLabel").textContent = "Sesion activa";
+    function normalizePlan(planCode) {
+      const value = String(planCode || "").toLowerCase();
+      if (value === "premium" || value === "unlimited") return "premium";
+      if (value === "normal" || value === "basic") return "normal";
+      return "normal";
+    }
+
+    function getPlanRules(planCode) {
+      const plan = normalizePlan(planCode);
+      if (plan === "premium") {
+        return {
+          label: "Premium",
+          usageLabel: "Ilimitadas",
+          uploadLimitMb: 600,
+          usageHint: "Consultas ilimitadas",
+        };
+      }
+      return {
+        label: "Normal",
+        usageLabel: "50 por dia",
+        uploadLimitMb: 100,
+        usageHint: "50 consultas por dia",
+      };
+    }
+
+    function getNextStepLabel() {
+      if (!state.user) return "Inicia sesion";
+      if (state.user.role === "admin") return "Abrir administracion";
+      if (!state.documents.length) return "Cargar tu primer documento";
+      const pending = state.documents.find((doc) => String(doc.status || "").toLowerCase() === "processing");
+      if (pending) return "Esperar a que termine la carga";
+      if (state.usage && !state.usage.is_unlimited && Number(state.usage.remaining) <= 0) return "Esperar reinicio diario";
+      return "Ir a consultar";
+    }
+
+    function renderOverview() {
+      const user = state.user;
+      if (!user) {
+        $("overviewIdentity").textContent = "-";
+        $("overviewUsage").textContent = "-";
+        $("overviewUploadLimit").textContent = "-";
+        $("overviewNextStep").textContent = "-";
         return;
       }
-      $("profileLabel").textContent = `${state.user.email} | ${state.user.role} | plan ${state.user.plan_code}`;
-      if (state.user.role === "admin") {
-        show($("adminPanel"));
-      } else {
-        hide($("adminPanel"));
+
+      const plan = getPlanRules(user.plan_code);
+      const usage = state.usage || {};
+      const usageText = usage.is_unlimited
+        ? `${usage.query_count || 0} consultas hoy`
+        : `${usage.query_count || 0}/${usage.daily_limit || 50} consultas hoy`;
+      const usageNote = usage.is_unlimited
+        ? "Sin limite diario"
+        : `${usage.remaining ?? 0} restantes`;
+
+      $("overviewIdentity").textContent = `${user.email} | ${user.role} | ${plan.label}`;
+      $("overviewUsage").textContent = `${usageText} (${usageNote})`;
+      $("overviewUploadLimit").textContent = `${plan.uploadLimitMb} MB`;
+      $("overviewNextStep").textContent = getNextStepLabel();
+    }
+
+    function renderTabs() {
+      const isAdmin = !!state.user && state.user.role === "admin";
+      const activeTab = isAdmin ? state.activeTab : (state.activeTab === "admin" ? "summary" : state.activeTab);
+      state.activeTab = activeTab;
+
+      const tabButtons = document.querySelectorAll("[data-tab]");
+      const panels = document.querySelectorAll("[data-tab-panel]");
+      const quickButtons = document.querySelectorAll("[data-jump-tab]");
+      const grid = $("workspaceGrid");
+
+      tabButtons.forEach((btn) => {
+        const tab = btn.dataset.tab;
+        const visible = tab !== "admin" || isAdmin;
+        btn.classList.toggle("hidden", !visible);
+        btn.classList.toggle("active", visible && tab === activeTab);
+        btn.setAttribute("aria-selected", visible && tab === activeTab ? "true" : "false");
+      });
+
+      quickButtons.forEach((btn) => {
+        const tab = btn.dataset.jumpTab;
+        const visible = tab !== "admin" || isAdmin;
+        btn.classList.toggle("hidden", !visible);
+      });
+
+      panels.forEach((panel) => {
+        const tab = panel.dataset.tabPanel;
+        panel.classList.toggle("hidden", tab !== activeTab);
+      });
+
+      const showWorkspace = activeTab === "upload" || activeTab === "chat";
+      grid.classList.toggle("hidden", !showWorkspace);
+      grid.classList.toggle("single-pane", showWorkspace);
+    }
+
+    function setActiveTab(tab) {
+      state.activeTab = tab;
+      renderTabs();
+      if (tab === "summary") {
+        renderOverview();
       }
     }
 
+    function renderProfile() {
+      if (!state.user) {
+        $("profileLabel").textContent = "Sesion activa";
+        renderTabs();
+        renderOverview();
+        return;
+      }
+      const plan = getPlanRules(state.user.plan_code);
+      $("profileLabel").textContent = `${state.user.email} | ${state.user.role} | plan ${plan.label}`;
+      renderTabs();
+      renderOverview();
+    }
+
     function renderUsage() {
-      const u = state.usage || {};
+      const u = state.usage;
       if (!u) {
         $("usageLabel").textContent = "Uso de hoy: -";
+        renderOverview();
         return;
       }
       if (u.is_unlimited) {
         $("usageLabel").textContent = `Uso de hoy: ${u.query_count} consultas (sin limite)`;
+        renderOverview();
         return;
       }
       $("usageLabel").textContent = `Uso de hoy: ${u.query_count}/${u.daily_limit} | restantes ${u.remaining}`;
+      renderOverview();
     }
 
     function renderDocuments() {
@@ -899,9 +1233,11 @@
       state.documents = [];
       state.usage = null;
       state.users = [];
+      state.activeTab = "summary";
       renderUsage();
       renderDocuments();
       renderUsers();
+      renderProfile();
       clearChat();
       setView(false);
     }
@@ -1164,6 +1500,18 @@
     $("clearChatBtn").addEventListener("click", clearChat);
     $("createUserBtn").addEventListener("click", () => createUser().catch((err) => setStatus("createUserStatus", err.message, true)));
     $("refreshUsersBtn").addEventListener("click", () => loadUsers().catch((err) => setStatus("createUserStatus", err.message, true)));
+    document.querySelectorAll("[data-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.classList.contains("hidden")) return;
+        setActiveTab(btn.dataset.tab);
+      });
+    });
+    document.querySelectorAll("[data-jump-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.classList.contains("hidden")) return;
+        setActiveTab(btn.dataset.jumpTab);
+      });
+    });
     $("passwordInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         login().catch((err) => setStatus("loginStatus", err.message, true));
