@@ -504,6 +504,27 @@
       border-color: var(--line);
     }
 
+    .chat-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px dashed #bfd0ea;
+      border-radius: 12px;
+      background: #f8fbff;
+    }
+
+    .chat-actions .small {
+      color: #51647d;
+    }
+
+    .chat-actions .copy-last-btn {
+      min-width: 190px;
+      justify-content: center;
+    }
+
     .answer-text {
       white-space: pre-wrap;
       line-height: 1.6;
@@ -835,13 +856,16 @@
         <div class="panel-head">
           <h2 class="title">Consulta de documentos</h2>
           <div class="inline">
-            <button class="secondary copy-last-btn" id="copyLastAnswerBtn" disabled>Copiar ultima respuesta</button>
             <button class="secondary" id="clearChatBtn">Limpiar</button>
           </div>
         </div>
         <div class="panel-body stack">
           <div id="chatLog" class="chat-log">
             <div class="bubble assistant">Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la informacion exacta de tus archivos.</div>
+          </div>
+          <div class="chat-actions">
+            <button class="secondary copy-last-btn" id="copyLastAnswerBtn" disabled>Copiar ultima respuesta</button>
+            <span class="small">Copia la ultima respuesta generada sin seleccionar texto.</span>
           </div>
           <label>
             Pregunta
