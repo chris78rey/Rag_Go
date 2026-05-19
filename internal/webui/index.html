@@ -462,6 +462,35 @@
       background: #f8fafc;
     }
 
+    .bubble.assistant {
+      display: grid;
+      gap: 8px;
+    }
+
+    .bubble-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .copy-btn {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--line);
+      padding: 6px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+
+    .copy-btn:hover {
+      background: #eef4ff;
+      opacity: 1;
+    }
+
+    .answer-text {
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
     .footer-note {
       margin-top: 12px;
       color: var(--muted);
@@ -1352,7 +1381,45 @@
     function appendBubble(role, text = "") {
       const bubble = document.createElement("div");
       bubble.className = `bubble ${role}`;
-      bubble.textContent = text;
+
+      if (role === "assistant") {
+        const actions = document.createElement("div");
+        actions.className = "bubble-actions";
+
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "copy-btn";
+        copyBtn.textContent = "Copiar respuesta";
+        copyBtn.dataset.copyState = "idle";
+
+        const answerText = document.createElement("div");
+        answerText.className = "answer-text";
+        answerText.textContent = text;
+
+        copyBtn.addEventListener("click", async () => {
+          const textToCopy = answerText.textContent || "";
+          if (!textToCopy.trim()) return;
+          try {
+            await navigator.clipboard.writeText(textToCopy);
+            const previous = copyBtn.textContent;
+            copyBtn.textContent = "Copiado";
+            window.setTimeout(() => {
+              copyBtn.textContent = previous;
+            }, 1400);
+          } catch {
+            alert("No se pudo copiar la respuesta");
+          }
+        });
+
+        actions.appendChild(copyBtn);
+        bubble.appendChild(actions);
+        bubble.appendChild(answerText);
+        bubble._answerText = answerText;
+        bubble._copyBtn = copyBtn;
+      } else {
+        bubble.textContent = text;
+      }
+
       $("chatLog").appendChild(bubble);
       $("chatLog").scrollTop = $("chatLog").scrollHeight;
       return bubble;
@@ -1536,6 +1603,7 @@
       userBubble.scrollIntoView({ block: "end" });
 
       const assistantBubble = appendBubble("assistant", "");
+      const assistantText = assistantBubble._answerText || assistantBubble;
       const response = await fetch("/api/chat", {
         method: "POST",
         credentials: "same-origin",
@@ -1589,7 +1657,7 @@
         const payload = JSON.parse(dataText);
         if (payload.content) {
           answer += payload.content;
-          assistantBubble.textContent = answer;
+          assistantText.textContent = answer;
           $("chatLog").scrollTop = $("chatLog").scrollHeight;
         }
       };
@@ -1617,7 +1685,7 @@
       }
 
       if (!answer.trim()) {
-        assistantBubble.textContent = "(sin respuesta)";
+        assistantText.textContent = "(sin respuesta)";
       }
       await loadUsage();
     }

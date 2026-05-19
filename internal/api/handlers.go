@@ -950,7 +950,12 @@ PRESTA ATENCIÓN a la SECCIÓN de cada fragmento: reglas de diferentes secciones
 No mezcles reglas de una sección con otra. Si un fragmento pertenece a "Sala de Alta Complejidad" 
 y otro a "Quirófano General", son normas diferentes y debes usar la correcta según el caso.
 Si la respuesta no está en los fragmentos, indícalo sin inventar.
-Responde en español, de forma clara y concisa, citando la sección del tarifario que aplica.`
+Responde en español con una estructura ordenada y fácil de copiar:
+1. Respuesta directa.
+2. Desarrollo con los puntos relevantes.
+3. Secciones o fragmentos consultados.
+4. Observaciones o limitaciones, si aplica.
+Usa viñetas cuando haya varios elementos y evita mezclar ideas en un solo párrafo. Cita la sección del tarifario que aplica.`
 
 	userPrompt := fmt.Sprintf(`Contexto de documentos:
 %s
