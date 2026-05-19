@@ -19,13 +19,15 @@ const (
 
 // Info holds metadata about an ingestion task.
 type Info struct {
-	ID        string    `json:"id"`
-	Filename  string    `json:"filename"`
-	Status    Status    `json:"status"`
-	Chunks    int       `json:"chunks"`
-	Error     string    `json:"error,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	Filename        string    `json:"filename"`
+	Status          Status    `json:"status"`
+	Chunks          int       `json:"chunks"`
+	CompletedChunks int       `json:"completed_chunks"`
+	Progress        int       `json:"progress"`
+	Error           string    `json:"error,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // Manager tracks ingestion tasks in memory.
@@ -80,5 +82,35 @@ func (m *Manager) UpdateStatus(id string, status Status, chunks int, errMsg stri
 		if errMsg != "" {
 			info.Error = errMsg
 		}
+	}
+}
+
+// UpdateProgress updates chunk progress for a task.
+func (m *Manager) UpdateProgress(id string, completedChunks, totalChunks int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if info, ok := m.tasks[id]; ok {
+		if totalChunks < 0 {
+			totalChunks = 0
+		}
+		if completedChunks < 0 {
+			completedChunks = 0
+		}
+		if totalChunks > 0 && completedChunks > totalChunks {
+			completedChunks = totalChunks
+		}
+
+		info.Chunks = totalChunks
+		info.CompletedChunks = completedChunks
+		if totalChunks > 0 {
+			info.Progress = (completedChunks * 100) / totalChunks
+			if info.Progress > 100 {
+				info.Progress = 100
+			}
+		} else {
+			info.Progress = 0
+		}
+		info.UpdatedAt = time.Now()
 	}
 }

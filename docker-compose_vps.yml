@@ -7,59 +7,46 @@ services:
       qdrant:
         condition: service_started
     environment:
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PORT=8080
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?define_OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=openai/gpt-4o-mini
-      - EMBEDDING_MODEL=openai/text-embedding-3-large
-
-      # IMPORTANTE: no dejar vacío
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-large}
       - JWT_SECRET=clave-temporal-rag-go-2026-cambiar-despues
-
-      # PostgreSQL fijo para prueba
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=raguser
       - DB_PASSWORD=ragpass
       - DB_NAME=ragdb
-
-      # Qdrant
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6334
       - QDRANT_COLLECTION=semantic_docs
-
-      # Configuración RAG
       - CHUNK_SIZE=512
       - CHUNK_OVERLAP=64
       - TOP_K=10
       - LOG_LEVEL=info
       - UPLOAD_DIR=/app/uploads
-
+      - TMP_DIR=/tmp
+      - CORS_ALLOW_ORIGIN=*
     volumes:
       - uploads:/app/uploads
-
     networks:
       - coolify
       - internal
-
     expose:
       - "8080"
-
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
-
-      # Cambiar este dominio si se usa otro
       - "traefik.http.routers.raggo-rag.rule=Host(`rag.da-tica.com`)"
       - "traefik.http.routers.raggo-rag.entrypoints=https"
       - "traefik.http.routers.raggo-rag.tls=true"
       - "traefik.http.routers.raggo-rag.tls.certresolver=letsencrypt"
       - "traefik.http.services.raggo-rag.loadbalancer.server.port=8080"
-
       - "traefik.http.routers.raggo-rag-http.rule=Host(`rag.da-tica.com`)"
       - "traefik.http.routers.raggo-rag-http.entrypoints=http"
       - "traefik.http.routers.raggo-rag-http.middlewares=raggo-redirect"
       - "traefik.http.middlewares.raggo-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.raggo-redirect.redirectscheme.permanent=true"
-
     restart: unless-stopped
 
   qdrant:
@@ -76,20 +63,34 @@ services:
       POSTGRES_USER: raguser
       POSTGRES_PASSWORD: ragpass
       POSTGRES_DB: ragdb
-
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - work_mem=1MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - max_connections=20
+      - -c
+      - effective_cache_size=128MB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_buffers=1MB
     volumes:
       - pgdata_v3:/var/lib/postgresql/data
-
     networks:
       - internal
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U raguser -d ragdb"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 10s
-
     restart: unless-stopped
 
 volumes:

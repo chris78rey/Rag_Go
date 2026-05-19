@@ -24,16 +24,16 @@ import (
 
 // Server holds all dependencies for HTTP handlers.
 type Server struct {
-	db         *sql.DB
-	authSvc    *auth.Service
-	taskMgr    *task.Manager
-	chunker    *document.Chunker
-	extractor  *document.Extractor
-	embClient  *embeddings.Client
-	llmClient  *llm.Client
-	vsClient   *vectorstore.Client
-	uploadDir  string
-	topK       uint64
+	db        *sql.DB
+	authSvc   *auth.Service
+	taskMgr   *task.Manager
+	chunker   *document.Chunker
+	extractor *document.Extractor
+	embClient *embeddings.Client
+	llmClient *llm.Client
+	vsClient  *vectorstore.Client
+	uploadDir string
+	topK      uint64
 }
 
 // NewServer creates the API server with all dependencies.
@@ -332,7 +332,6 @@ func (s *Server) handleUploadText(w http.ResponseWriter, r *http.Request) {
 func (s *Server) processDocument(taskID, documentID, userID, filePath, filename string) {
 	ctx := context.Background()
 
-	// Step 1: Extract text
 	s.taskMgr.UpdateStatus(taskID, task.StatusExtracting, 0, "")
 	slog.Info("iniciando_extraccion", "task_id", taskID, "doc_id", documentID, "user_id", userID)
 
@@ -344,19 +343,19 @@ func (s *Server) processDocument(taskID, documentID, userID, filePath, filename 
 		return
 	}
 
-	// Step 2: Chunking
 	s.taskMgr.UpdateStatus(taskID, task.StatusEmbedding, 0, "")
 	chunks := s.chunker.Split(text, filename)
 	slog.Info("chunking_completado", "task_id", taskID, "chunks", len(chunks))
 
 	if len(chunks) == 0 {
-		s.taskMgr.UpdateStatus(taskID, task.StatusError, 0, "sin texto extraíble")
+		s.taskMgr.UpdateStatus(taskID, task.StatusError, 0, "sin texto extraible")
 		s.updateDocumentStatus(documentID, "error")
 		return
 	}
 
-	// Step 3: Embed in batches of 16
-	s.taskMgr.UpdateStatus(taskID, task.StatusEmbedding, len(chunks), "")
+	s.taskMgr.UpdateProgress(taskID, 0, len(chunks))
+	s.updateDocumentProgress(documentID, "processing", 0, len(chunks))
+
 	batchSize := 8
 	maxRetries := 3
 	var allVectors [][]float64
@@ -405,9 +404,12 @@ func (s *Server) processDocument(taskID, documentID, userID, filePath, filename 
 		}
 
 		slog.Info("lote_embeddings_completado", "task_id", taskID, "lote", i/batchSize, "tamaño", len(batch))
+		s.taskMgr.UpdateProgress(taskID, end, len(chunks))
+		s.updateDocumentProgress(documentID, "processing", end, len(chunks))
 	}
 
-	// Step 4: Store in Qdrant
+	s.taskMgr.UpdateProgress(taskID, len(chunks), len(chunks))
+	s.updateDocumentProgress(documentID, "processing", len(chunks), len(chunks))
 	s.taskMgr.UpdateStatus(taskID, task.StatusStoring, len(chunks), "")
 	if err := s.vsClient.Upsert(ctx, allVectors, allPayloads); err != nil {
 		slog.Error("error_almacenamiento", "task_id", taskID, "error", err)
@@ -416,12 +418,11 @@ func (s *Server) processDocument(taskID, documentID, userID, filePath, filename 
 		return
 	}
 
-	// Step 5: Mark completed
 	s.taskMgr.UpdateStatus(taskID, task.StatusCompleted, len(chunks), "")
-	s.updateDocumentStatusWithChunks(documentID, "completed", len(chunks))
+	s.taskMgr.UpdateProgress(taskID, len(chunks), len(chunks))
+	s.updateDocumentProgress(documentID, "completed", len(chunks), len(chunks))
 	slog.Info("ingesta_completada", "task_id", taskID, "doc_id", documentID, "chunks", len(chunks))
 
-	// Clean up uploaded file
 	os.Remove(filePath)
 }
 
@@ -433,13 +434,15 @@ func (s *Server) updateDocumentStatus(docID, status string) {
 	}
 }
 
-func (s *Server) updateDocumentStatusWithChunks(docID, status string, chunks int) {
+func (s *Server) updateDocumentProgress(docID, status string, processedChunks, totalChunks int) {
 	_, err := s.db.ExecContext(context.Background(),
-		"UPDATE documents SET status = $1, chunks = $2 WHERE id = $3",
-		status, chunks, docID,
+		`UPDATE documents
+		 SET status = $1, chunks = $2, processed_chunks = $3, total_chunks = $4
+		 WHERE id = $5`,
+		status, totalChunks, processedChunks, totalChunks, docID,
 	)
 	if err != nil {
-		slog.Error("actualizando_estado_documento_chunks", "doc_id", docID, "error", err)
+		slog.Error("actualizando_estado_documento_progress", "doc_id", docID, "error", err)
 	}
 }
 
@@ -449,7 +452,7 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
 
 	rows, err := s.db.QueryContext(r.Context(),
-		`SELECT id, original_filename, size_bytes, status, chunks, created_at
+		`SELECT id, original_filename, size_bytes, status, chunks, processed_chunks, total_chunks, created_at
 		 FROM documents WHERE user_id = $1
 		 ORDER BY created_at DESC`, userID,
 	)
@@ -465,6 +468,8 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		SizeBytes        int64  `json:"size_bytes"`
 		Status           string `json:"status"`
 		Chunks           int    `json:"chunks"`
+		ProcessedChunks  int    `json:"processed_chunks"`
+		TotalChunks      int    `json:"total_chunks"`
 		CreatedAt        string `json:"created_at"`
 	}
 
@@ -472,7 +477,7 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d DocResponse
 		var createdAt time.Time
-		if err := rows.Scan(&d.ID, &d.OriginalFilename, &d.SizeBytes, &d.Status, &d.Chunks, &createdAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.OriginalFilename, &d.SizeBytes, &d.Status, &d.Chunks, &d.ProcessedChunks, &d.TotalChunks, &createdAt); err != nil {
 			continue
 		}
 		d.CreatedAt = createdAt.Format("2006-01-02T15:04:05Z07:00")
@@ -531,13 +536,15 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 // --- Task Status ---
 
 type TaskResponse struct {
-	ID        string      `json:"id"`
-	Filename  string      `json:"filename"`
-	Status    task.Status `json:"status"`
-	Chunks    int         `json:"chunks"`
-	Error     string      `json:"error,omitempty"`
-	CreatedAt string      `json:"created_at"`
-	UpdatedAt string      `json:"updated_at"`
+	ID              string      `json:"id"`
+	Filename        string      `json:"filename"`
+	Status          task.Status `json:"status"`
+	Chunks          int         `json:"chunks"`
+	CompletedChunks int         `json:"completed_chunks"`
+	Progress        int         `json:"progress"`
+	Error           string      `json:"error,omitempty"`
+	CreatedAt       string      `json:"created_at"`
+	UpdatedAt       string      `json:"updated_at"`
 }
 
 func (s *Server) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
@@ -549,13 +556,15 @@ func (s *Server) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, TaskResponse{
-		ID:        info.ID,
-		Filename:  info.Filename,
-		Status:    info.Status,
-		Chunks:    info.Chunks,
-		Error:     info.Error,
-		CreatedAt: info.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: info.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:              info.ID,
+		Filename:        info.Filename,
+		Status:          info.Status,
+		Chunks:          info.Chunks,
+		CompletedChunks: info.CompletedChunks,
+		Progress:        info.Progress,
+		Error:           info.Error,
+		CreatedAt:       info.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:       info.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	})
 }
 

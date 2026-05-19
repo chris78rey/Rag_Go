@@ -9,8 +9,7 @@ services:
       - PORT=8080
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openai/gpt-4o-mini}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-small}
-      - EMBEDDING_DIM=${EMBEDDING_DIM:-1536}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-large}
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -42,6 +41,24 @@ services:
       - POSTGRES_DB=ragdb
       - POSTGRES_USER=rag
       - POSTGRES_PASSWORD=ragpass
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - work_mem=1MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - max_connections=20
+      - -c
+      - effective_cache_size=128MB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_buffers=1MB
     ports:
       - "5432:5432"
     volumes:

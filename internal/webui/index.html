@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Semantic Core RAG</title>
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --panel: #ffffff;
+      --line: #d9e1ea;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #1d4ed8;
+      --accent-2: #0f766e;
+      --danger: #b91c1c;
+      --soft: #f8fafc;
+      --shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2)),
+        radial-gradient(circle at top right, rgba(29, 78, 216, 0.10), transparent 32rem),
+        radial-gradient(circle at bottom left, rgba(15, 118, 110, 0.10), transparent 30rem),
+        var(--bg);
+    }
+
+    button, input, textarea, select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    button:hover { opacity: 0.95; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .secondary { background: #e2e8f0; color: #0f172a; }
+    .danger { background: var(--danger); }
+    .ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--text);
+      padding: 11px 12px;
+      outline: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: rgba(29, 78, 216, 0.45);
+      box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.10);
+    }
+
+    textarea { min-height: 110px; resize: vertical; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .hidden { display: none !important; }
+
+    .wrap {
+      width: min(1120px, calc(100% - 24px));
+      margin: 0 auto;
+      padding: 20px 0 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: #0f172a;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .brand span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .userbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.75);
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 18px 0;
+    }
+
+    .panel-body {
+      padding: 18px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -0.03em;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 1.5em;
+      white-space: pre-wrap;
+    }
+
+    .status {
+      min-height: 1.4em;
+      color: var(--accent-2);
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    .progress-wrap {
+      display: grid;
+      gap: 6px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), #2563eb 55%, #22c55e);
+      transition: width 180ms ease;
+    }
+
+    .progress-track.indeterminate .progress-fill {
+      width: 42%;
+      position: absolute;
+      left: 0;
+      animation: progress-indeterminate 1.2s ease-in-out infinite;
+    }
+
+    .progress-note {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @keyframes progress-indeterminate {
+      0% { transform: translateX(-120%); }
+      50% { transform: translateX(60%); }
+      100% { transform: translateX(220%); }
+    }
+
+    .chat-log {
+      min-height: 240px;
+      max-height: 420px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fcfdff;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .bubble {
+      max-width: 100%;
+      border-radius: 14px;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .bubble.user {
+      margin-left: auto;
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .bubble.assistant {
+      background: #f8fafc;
+    }
+
+    .footer-note {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .login-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .login-card {
+      width: min(560px, 100%);
+      padding: 24px;
+    }
+
+    .login-card h1 {
+      margin: 0 0 6px;
+      font-size: 30px;
+      letter-spacing: -0.04em;
+    }
+
+    .login-card .stack {
+      margin-top: 18px;
+    }
+
+    .section {
+      margin-top: 16px;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 16px 18px;
+      font-weight: 650;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    .table-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .inline {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 12px 0;
+    }
+
+    @media (max-width: 920px) {
+      .grid, .split {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .userbar {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="loginView" class="login-shell">
+    <section class="panel login-card">
+      <h1>Semantic Core RAG</h1>
+      <p class="muted">Una sola app Go sirviendo login, carga de documentos y chat. Sin capa web separada.</p>
+      <div class="stack">
+        <label>
+          Email
+          <input id="emailInput" type="email" autocomplete="username" value="admin@rag.local" />
+        </label>
+        <label>
+          Password
+          <input id="passwordInput" type="password" autocomplete="current-password" value="admin123" />
+        </label>
+        <button id="loginBtn">Entrar</button>
+        <div id="loginStatus" class="status"></div>
+      </div>
+    </section>
+  </main>
+
+  <main id="appView" class="wrap hidden">
+    <div class="topbar">
+      <div class="brand">
+        <div class="mark">R</div>
+        <div>
+          <strong>Semantic Core RAG</strong>
+          <span>UI simple, misma capa que Go</span>
+        </div>
+      </div>
+      <div class="userbar">
+        <div class="pill" id="profileLabel">Sesion activa</div>
+        <div class="pill" id="usageLabel">Uso de hoy: -</div>
+        <button class="secondary" id="refreshBtn">Actualizar</button>
+        <button class="ghost" id="logoutBtn">Salir</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="title">Subir documento</h2>
+          <span class="small">PDF, TXT o MD</span>
+        </div>
+        <div class="panel-body stack">
+          <label>
+            Archivo
+            <input id="fileInput" type="file" />
+          </label>
+          <button id="uploadBtn">Subir archivo</button>
+          <div id="uploadStatus" class="status"></div>
+          <div id="uploadProgressWrap" class="progress-wrap hidden" aria-hidden="true">
+            <div id="uploadProgressTrack" class="progress-track">
+              <div id="uploadProgressFill" class="progress-fill"></div>
+            </div>
+            <div id="uploadProgressNote" class="progress-note"></div>
+          </div>
+
+          <div class="section">
+            <div class="inline" style="margin-bottom: 8px;">
+              <strong>O pegar texto</strong>
+              <span class="small">Se indexa como .txt</span>
+            </div>
+            <div class="stack">
+              <label>
+                Titulo opcional
+                <input id="textTitleInput" type="text" placeholder="Notas internas" />
+              </label>
+              <label>
+                Texto
+                <textarea id="textBodyInput" placeholder="Pega aqui el contenido"></textarea>
+              </label>
+              <button id="textUploadBtn" class="secondary">Subir texto</button>
+              <div id="textUploadStatus" class="status"></div>
+              <div id="textUploadProgressWrap" class="progress-wrap hidden" aria-hidden="true">
+                <div id="textUploadProgressTrack" class="progress-track">
+                  <div id="textUploadProgressFill" class="progress-fill"></div>
+                </div>
+                <div id="textUploadProgressNote" class="progress-note"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="title">Chat RAG</h2>
+          <button class="secondary" id="clearChatBtn">Limpiar</button>
+        </div>
+        <div class="panel-body stack">
+          <div id="chatLog" class="chat-log">
+            <div class="bubble assistant">Haz una pregunta sobre tus documentos. La respuesta se genera con el contexto recuperado.</div>
+          </div>
+          <label>
+            Pregunta
+            <textarea id="questionInput" placeholder="Escribe tu consulta"></textarea>
+          </label>
+          <button id="askBtn">Preguntar</button>
+          <div id="chatMeta" class="meta"></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="section panel">
+      <div class="panel-head">
+        <h2 class="title">Mis documentos</h2>
+        <button class="secondary" id="refreshDocsBtn">Refrescar</button>
+      </div>
+      <div class="panel-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Archivo</th>
+              <th>Estado</th>
+              <th>Chunks</th>
+              <th>Progreso</th>
+              <th>Fecha</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="docsBody"></tbody>
+        </table>
+        <div id="docsEmpty" class="empty hidden">No hay documentos cargados.</div>
+      </div>
+    </section>
+
+    <details id="adminPanel" class="section hidden">
+      <summary>Administración básica</summary>
+      <div class="panel-body">
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+          <section class="panel" style="box-shadow: none; background: #fff;">
+            <div class="panel-head">
+              <h2 class="title">Crear usuario</h2>
+            </div>
+            <div class="panel-body stack">
+              <label>Email<input id="newUserEmail" type="email" /></label>
+              <label>Nombre completo<input id="newUserFullName" type="text" /></label>
+              <label>Password<input id="newUserPassword" type="password" /></label>
+              <label>Rol
+                <select id="newUserRole">
+                  <option value="user">Usuario</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </label>
+              <label>Plan
+                <select id="newUserPlan">
+                  <option value="basic">basic</option>
+                  <option value="unlimited">unlimited</option>
+                </select>
+              </label>
+              <button id="createUserBtn">Crear</button>
+              <div id="createUserStatus" class="status"></div>
+            </div>
+          </section>
+
+          <section class="panel" style="box-shadow: none; background: #fff;">
+            <div class="panel-head">
+              <h2 class="title">Usuarios</h2>
+              <button class="secondary" id="refreshUsersBtn">Refrescar</button>
+            </div>
+            <div class="panel-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Plan</th>
+                    <th>Activo</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="usersBody"></tbody>
+              </table>
+              <div id="usersEmpty" class="empty hidden">No hay usuarios para mostrar.</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </details>
+
+    <div class="footer-note">Misma origin, token en localStorage y UI sin dependencia de otro servidor.</div>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "semantic_rag_token";
+    const state = {
+      token: localStorage.getItem(STORAGE_KEY) || "",
+      user: null,
+      documents: [],
+      usage: null,
+      users: []
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function show(el) { el.classList.remove("hidden"); }
+    function hide(el) { el.classList.add("hidden"); }
+
+    function setStatus(id, message, isError = false) {
+      const el = $(id);
+      el.textContent = message || "";
+      el.style.color = isError ? "var(--danger)" : "var(--accent-2)";
+    }
+
+    function setProgress(trackId, fillId, noteId, progress, label = "", indeterminate = false) {
+      const wrap = $(trackId).closest(".progress-wrap");
+      const track = $(trackId);
+      const fill = $(fillId);
+      const note = $(noteId);
+
+      if (progress === null || progress === undefined) {
+        wrap.classList.add("hidden");
+        track.classList.remove("indeterminate");
+        fill.style.width = "0%";
+        note.textContent = "";
+        return;
+      }
+
+      wrap.classList.remove("hidden");
+      if (indeterminate) {
+        track.classList.add("indeterminate");
+        fill.style.width = "42%";
+      } else {
+        track.classList.remove("indeterminate");
+        const safeProgress = Math.max(0, Math.min(100, Number(progress) || 0));
+        fill.style.width = `${safeProgress}%`;
+      }
+      note.textContent = label || "";
+    }
+
+    function setToken(token) {
+      state.token = token;
+      localStorage.setItem(STORAGE_KEY, token);
+    }
+
+    function clearToken() {
+      state.token = "";
+      state.user = null;
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    function authHeaders(extra = {}) {
+      const headers = new Headers(extra);
+      if (state.token) {
+        headers.set("Authorization", "Bearer " + state.token);
+      }
+      return headers;
+    }
+
+    async function readError(res) {
+      try {
+        const data = await res.json();
+        return data.error || data.message || `HTTP ${res.status}`;
+      } catch {
+        return `HTTP ${res.status}`;
+      }
+    }
+
+    async function api(path, options = {}) {
+      const headers = authHeaders(options.headers || {});
+      const bodyIsFormData = options.body instanceof FormData;
+
+      if (!bodyIsFormData && options.body !== undefined && !headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+
+      const res = await fetch(path, {
+        credentials: "same-origin",
+        ...options,
+        headers,
+      });
+
+      if (!res.ok) {
+        throw new Error(await readError(res));
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        return await res.json();
+      }
+      return await res.text();
+    }
+
+    async function publicApi(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const bodyIsFormData = options.body instanceof FormData;
+      if (!bodyIsFormData && options.body !== undefined && !headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+
+      const res = await fetch(path, {
+        credentials: "same-origin",
+        ...options,
+        headers,
+      });
+
+      if (!res.ok) {
+        throw new Error(await readError(res));
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        return await res.json();
+      }
+      return await res.text();
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function formatDate(value) {
+      if (!value) return "-";
+      try {
+        return new Date(value).toLocaleString("es-CO", {
+          dateStyle: "short",
+          timeStyle: "short",
+        });
+      } catch {
+        return value;
+      }
+    }
+
+    function setView(loggedIn) {
+      if (loggedIn) {
+        hide($("loginView"));
+        show($("appView"));
+      } else {
+        show($("loginView"));
+        hide($("appView"));
+      }
+    }
+
+    function renderProfile() {
+      if (!state.user) {
+        $("profileLabel").textContent = "Sesion activa";
+        return;
+      }
+      $("profileLabel").textContent = `${state.user.email} | ${state.user.role} | plan ${state.user.plan_code}`;
+      if (state.user.role === "admin") {
+        show($("adminPanel"));
+      } else {
+        hide($("adminPanel"));
+      }
+    }
+
+    function renderUsage() {
+      const u = state.usage || {};
+      if (!u) {
+        $("usageLabel").textContent = "Uso de hoy: -";
+        return;
+      }
+      if (u.is_unlimited) {
+        $("usageLabel").textContent = `Uso de hoy: ${u.query_count} consultas (sin limite)`;
+        return;
+      }
+      $("usageLabel").textContent = `Uso de hoy: ${u.query_count}/${u.daily_limit} | restantes ${u.remaining}`;
+    }
+
+    function renderDocuments() {
+      const body = $("docsBody");
+      body.innerHTML = "";
+
+      if (!state.documents.length) {
+        show($("docsEmpty"));
+        return;
+      }
+
+      hide($("docsEmpty"));
+      for (const doc of state.documents) {
+        const processed = Number(doc.processed_chunks ?? 0);
+        const total = Number(doc.total_chunks ?? 0);
+        const chunks = Number(doc.chunks ?? 0);
+        const percent = total > 0
+          ? Math.min(100, Math.round((processed * 100) / total))
+          : (doc.status === "completed" ? 100 : 0);
+        const chunkLabel = total > 0 ? `${processed}/${total}` : `${chunks}`;
+        const progressLabel = doc.status === "completed"
+          ? "100%"
+          : total > 0
+            ? `${percent}%`
+            : (doc.status === "processing" ? "Procesando" : "-");
+        const indeterminate = doc.status === "processing" && total <= 0;
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>
+            <div><strong>${escapeHtml(doc.original_filename || doc.filename || "Documento")}</strong></div>
+            <div class="small">${escapeHtml(doc.id)}</div>
+          </td>
+          <td>${escapeHtml(doc.status || "-")}</td>
+          <td>${escapeHtml(chunkLabel)}</td>
+          <td>
+            <div class="progress-wrap">
+              <div class="progress-track${indeterminate ? " indeterminate" : ""}">
+                <div class="progress-fill" style="width: ${indeterminate ? "42%" : `${percent}%`};"></div>
+              </div>
+              <div class="progress-note">${escapeHtml(progressLabel)}</div>
+            </div>
+          </td>
+          <td>${escapeHtml(formatDate(doc.created_at))}</td>
+          <td>
+            <div class="table-actions">
+              <button class="danger" data-delete-doc="${escapeHtml(doc.id)}">Eliminar</button>
+            </div>
+          </td>
+        `;
+        body.appendChild(row);
+      }
+
+      body.querySelectorAll("[data-delete-doc]").forEach((btn) => {
+        btn.addEventListener("click", () => deleteDocument(btn.getAttribute("data-delete-doc")));
+      });
+    }
+
+    function renderUsers() {
+      const body = $("usersBody");
+      body.innerHTML = "";
+
+      if (!state.users.length) {
+        show($("usersEmpty"));
+        return;
+      }
+
+      hide($("usersEmpty"));
+      for (const user of state.users) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>
+            <div><strong>${escapeHtml(user.email)}</strong></div>
+            <div class="small">${escapeHtml(user.full_name || "")}</div>
+          </td>
+          <td>${escapeHtml(user.role)}</td>
+          <td>
+            <select data-plan-for="${escapeHtml(user.id)}">
+              <option value="basic" ${user.plan_code === "basic" ? "selected" : ""}>basic</option>
+              <option value="unlimited" ${user.plan_code === "unlimited" ? "selected" : ""}>unlimited</option>
+            </select>
+          </td>
+          <td>${user.active ? "Si" : "No"}</td>
+          <td>
+            <div class="table-actions">
+              <button class="secondary" data-toggle-user="${escapeHtml(user.id)}">${user.active ? "Desactivar" : "Activar"}</button>
+            </div>
+          </td>
+        `;
+        body.appendChild(row);
+      }
+
+      body.querySelectorAll("[data-toggle-user]").forEach((btn) => {
+        btn.addEventListener("click", () => toggleUser(btn.getAttribute("data-toggle-user")));
+      });
+
+      body.querySelectorAll("[data-plan-for]").forEach((select) => {
+        select.addEventListener("change", () => updatePlan(select.getAttribute("data-plan-for"), select.value));
+      });
+    }
+
+    function appendBubble(role, text = "") {
+      const bubble = document.createElement("div");
+      bubble.className = `bubble ${role}`;
+      bubble.textContent = text;
+      $("chatLog").appendChild(bubble);
+      $("chatLog").scrollTop = $("chatLog").scrollHeight;
+      return bubble;
+    }
+
+    function clearChat() {
+      $("chatLog").innerHTML = "";
+      appendBubble("assistant", "Haz una pregunta sobre tus documentos. La respuesta se genera con el contexto recuperado.");
+      $("chatMeta").textContent = "";
+    }
+
+    async function loadSession() {
+      if (!state.token) {
+        setView(false);
+        return;
+      }
+
+      try {
+        state.user = await api("/api/me");
+        setView(true);
+        renderProfile();
+        await Promise.all([loadUsage(), loadDocuments(), loadUsers()]);
+      } catch (err) {
+        clearToken();
+        setView(false);
+        setStatus("loginStatus", err.message, true);
+      }
+    }
+
+    async function login() {
+      setStatus("loginStatus", "Ingresando...");
+      const email = $("emailInput").value.trim();
+      const password = $("passwordInput").value;
+
+      const data = await publicApi("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+
+      setToken(data.token);
+      state.user = data;
+      setStatus("loginStatus", "");
+      setView(true);
+      renderProfile();
+      await Promise.all([loadUsage(), loadDocuments(), loadUsers()]);
+    }
+
+    async function logout() {
+      clearToken();
+      state.documents = [];
+      state.usage = null;
+      state.users = [];
+      renderUsage();
+      renderDocuments();
+      renderUsers();
+      clearChat();
+      setView(false);
+    }
+
+    async function loadUsage() {
+      state.usage = await api("/api/usage/today", { method: "GET" });
+      renderUsage();
+    }
+
+    async function loadDocuments() {
+      state.documents = await api("/api/documents", { method: "GET" });
+      renderDocuments();
+    }
+
+    async function loadUsers() {
+      if (!state.user || state.user.role !== "admin") {
+        state.users = [];
+        renderUsers();
+        return;
+      }
+      state.users = await api("/api/admin/users", { method: "GET" });
+      renderUsers();
+    }
+
+    async function deleteDocument(id) {
+      if (!confirm("Eliminar este documento?")) return;
+      await api(`/api/documents/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await Promise.all([loadDocuments(), loadUsage()]);
+    }
+
+    async function waitTask(taskId, statusElId, trackId, fillId, noteId) {
+      const statusEl = $(statusElId);
+      for (;;) {
+        const task = await api(`/api/task/${encodeURIComponent(taskId)}`, { method: "GET" });
+        const total = Number(task.chunks ?? 0);
+        const completed = Number(task.completed_chunks ?? 0);
+        const progress = Number(task.progress ?? 0);
+        const hasChunks = total > 0;
+        const displayProgress = hasChunks
+          ? Math.max(0, Math.min(100, progress || Math.round((completed * 100) / total)))
+          : (task.status === "completed" ? 100 : 0);
+        const label = hasChunks
+          ? `${completed}/${total} (${displayProgress}%)`
+          : (task.status === "completed" ? "100%" : "Procesando...");
+        statusEl.textContent = `Estado: ${task.status}${hasChunks ? ` | chunks: ${completed}/${total}` : ""}`;
+        if (hasChunks) {
+          setProgress(trackId, fillId, noteId, displayProgress, label, false);
+        } else if (task.status === "completed") {
+          setProgress(trackId, fillId, noteId, 100, "100%", false);
+        } else {
+          setProgress(trackId, fillId, noteId, 0, label, true);
+        }
+        if (task.status === "completed") {
+          setProgress(trackId, fillId, noteId, 100, "100%", false);
+          statusEl.textContent = "Estado: completed | Proceso terminado";
+          await Promise.all([loadDocuments(), loadUsage()]);
+          setTimeout(() => setProgress(trackId, fillId, noteId, null), 1500);
+          return;
+        }
+        if (task.status === "error") {
+          setProgress(trackId, fillId, noteId, null);
+          throw new Error(task.error || "Fallo el procesamiento");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    async function uploadFile() {
+      const file = $("fileInput").files[0];
+      if (!file) {
+        throw new Error("Selecciona un archivo");
+      }
+
+      const form = new FormData();
+      form.append("file", file);
+
+      $("uploadStatus").textContent = "Subiendo...";
+      setProgress("uploadProgressTrack", "uploadProgressFill", "uploadProgressNote", null);
+      const data = await api("/api/documents/upload", {
+        method: "POST",
+        body: form,
+      });
+
+      $("uploadStatus").textContent = data.message || "Procesando...";
+      setProgress("uploadProgressTrack", "uploadProgressFill", "uploadProgressNote", 0, "Preparando...", true);
+      await waitTask(data.task_id, "uploadStatus", "uploadProgressTrack", "uploadProgressFill", "uploadProgressNote");
+    }
+
+    async function uploadText() {
+      const text = $("textBodyInput").value.trim();
+      if (!text) {
+        throw new Error("Escribe un texto");
+      }
+
+      const body = {
+        title: $("textTitleInput").value.trim(),
+        text,
+      };
+
+      $("textUploadStatus").textContent = "Subiendo...";
+      setProgress("textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote", null);
+      const data = await api("/api/documents/text", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+
+      $("textUploadStatus").textContent = data.message || "Procesando...";
+      setProgress("textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote", 0, "Preparando...", true);
+      await waitTask(data.task_id, "textUploadStatus", "textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote");
+    }
+
+    async function askQuestion() {
+      const query = $("questionInput").value.trim();
+      if (!query) {
+        throw new Error("Escribe una pregunta");
+      }
+
+      $("questionInput").value = "";
+      $("chatMeta").textContent = "Consultando...";
+
+      const userBubble = appendBubble("user", query);
+      userBubble.scrollIntoView({ block: "end" });
+
+      const assistantBubble = appendBubble("assistant", "");
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ query }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readError(response));
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let answer = "";
+      let metadata = null;
+
+      const flushBlock = (block) => {
+        const lines = block.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        if (!lines.length) return;
+
+        let event = "message";
+        const dataLines = [];
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            event = line.slice(6).trim();
+          } else if (line.startsWith("data:")) {
+            dataLines.push(line.slice(5).trim());
+          }
+        }
+
+        const dataText = dataLines.join("\n");
+        if (!dataText) return;
+
+        if (event === "metadata") {
+          try {
+            metadata = JSON.parse(dataText);
+            const fuentes = Array.isArray(metadata.fuentes) ? metadata.fuentes.join(", ") : "-";
+            $("chatMeta").textContent = `Fragmentos: ${metadata.fragmentos_recuperados || metadata.Fragments || 0} | Fuentes: ${fuentes} | Calidad: ${metadata.calidad_contexto || metadata.ContextQuality || "-"}`;
+          } catch {
+            $("chatMeta").textContent = "Se recibio metadata";
+          }
+          return;
+        }
+
+        if (event === "error") {
+          const err = JSON.parse(dataText);
+          throw new Error(err.error || "Error en el stream");
+        }
+
+        const payload = JSON.parse(dataText);
+        if (payload.content) {
+          answer += payload.content;
+          assistantBubble.textContent = answer;
+          $("chatLog").scrollTop = $("chatLog").scrollHeight;
+        }
+      };
+
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let cut;
+          while ((cut = buffer.indexOf("\n\n")) !== -1) {
+            const block = buffer.slice(0, cut);
+            buffer = buffer.slice(cut + 2);
+            flushBlock(block);
+          }
+        }
+        if (buffer.trim()) {
+          flushBlock(buffer);
+        }
+      } finally {
+        $("chatMeta").textContent = metadata
+          ? $("chatMeta").textContent || "Consulta completada"
+          : $("chatMeta").textContent.replace("Consultando...", "").trim() || "Consulta completada";
+      }
+
+      if (!answer.trim()) {
+        assistantBubble.textContent = "(sin respuesta)";
+      }
+      await loadUsage();
+    }
+
+    async function createUser() {
+      const payload = {
+        email: $("newUserEmail").value.trim(),
+        password: $("newUserPassword").value,
+        full_name: $("newUserFullName").value.trim(),
+        role: $("newUserRole").value,
+        plan_code: $("newUserPlan").value,
+      };
+
+      $("createUserStatus").textContent = "Creando...";
+      await api("/api/admin/users", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      $("createUserStatus").textContent = "Usuario creado";
+      $("newUserPassword").value = "";
+      await loadUsers();
+    }
+
+    async function toggleUser(userId) {
+      const user = state.users.find((item) => item.id === userId);
+      if (!user) return;
+
+      await api(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active: !user.active }),
+      });
+      await loadUsers();
+    }
+
+    async function updatePlan(userId, planCode) {
+      await api(`/api/admin/users/${encodeURIComponent(userId)}/plan`, {
+        method: "PATCH",
+        body: JSON.stringify({ plan_code: planCode }),
+      });
+      await loadUsers();
+    }
+
+    $("loginBtn").addEventListener("click", () => login().catch((err) => setStatus("loginStatus", err.message, true)));
+    $("logoutBtn").addEventListener("click", logout);
+    $("refreshBtn").addEventListener("click", () => Promise.all([loadUsage(), loadDocuments(), loadUsers()]).catch((err) => alert(err.message)));
+    $("refreshDocsBtn").addEventListener("click", () => loadDocuments().catch((err) => alert(err.message)));
+    $("uploadBtn").addEventListener("click", () => uploadFile().catch((err) => setStatus("uploadStatus", err.message, true)));
+    $("textUploadBtn").addEventListener("click", () => uploadText().catch((err) => setStatus("textUploadStatus", err.message, true)));
+    $("askBtn").addEventListener("click", () => askQuestion().catch((err) => {
+      appendBubble("assistant", err.message);
+      $("chatMeta").textContent = "";
+    }));
+    $("clearChatBtn").addEventListener("click", clearChat);
+    $("createUserBtn").addEventListener("click", () => createUser().catch((err) => setStatus("createUserStatus", err.message, true)));
+    $("refreshUsersBtn").addEventListener("click", () => loadUsers().catch((err) => setStatus("createUserStatus", err.message, true)));
+    $("passwordInput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        login().catch((err) => setStatus("loginStatus", err.message, true));
+      }
+    });
+    $("questionInput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        askQuestion().catch((err) => appendBubble("assistant", err.message));
+      }
+    });
+
+    clearChat();
+    loadSession();
+  </script>
+</body>
+</html>

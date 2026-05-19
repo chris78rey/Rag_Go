@@ -9,7 +9,7 @@ cmd/server/main.go
 docker-compose.yml
 Dockerfile
 .env.example
-web/index.html
+internal/webui/index.html
 internal/vectorstore/qdrant.go
 internal/api/handlers.go
 ```
@@ -29,7 +29,7 @@ internal/api/handlers.go
    - `PATCH /api/admin/users/{id}/plan`
    - `GET /api/admin/usage`
    - `GET /api/admin/users/{id}/documents`
-5. Corrige el `Dockerfile` para copiar la carpeta `web`.
+5. Embebe la interfaz web dentro del binario Go para evitar depender de una capa web separada en el VPS.
 6. Corrige el ID de puntos en Qdrant para que sea un UUID válido.
 7. Actualiza el campo `chunks` en PostgreSQL cuando termina la ingesta.
 
@@ -71,14 +71,7 @@ Password: admin123
 
 ## Nota importante
 
-Si se cambia el modelo de embeddings a `openai/text-embedding-3-large`, también debe cambiarse:
+La dimension de embeddings ya no se define manualmente con `EMBEDDING_DIM`.
+El backend infiere la dimension desde `EMBEDDING_MODEL`.
 
-```env
-EMBEDDING_DIM=3072
-```
-
-Si se usa `openai/text-embedding-3-small`, se mantiene:
-
-```env
-EMBEDDING_DIM=1536
-```
+Por defecto se usa `openai/text-embedding-3-large`, con dimension 3072.

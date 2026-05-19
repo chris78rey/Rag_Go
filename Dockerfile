@@ -17,7 +17,6 @@ RUN apk add --no-cache poppler-utils ca-certificates tzdata
 WORKDIR /app
 
 COPY --from=builder /server /usr/local/bin/server
-COPY --from=builder /app/web ./web
 
 RUN mkdir -p /app/uploads /tmp
 

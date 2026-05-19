@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/codex/semantic-rag-go/internal/llm"
 	"github.com/codex/semantic-rag-go/internal/task"
 	"github.com/codex/semantic-rag-go/internal/vectorstore"
+	"github.com/codex/semantic-rag-go/internal/webui"
 )
 
 func main() {
@@ -62,7 +62,7 @@ func main() {
 		envInt("CHUNK_OVERLAP", 64),
 	)
 	extractor := document.NewExtractor(tmpDir)
-	embClient := embeddings.NewClient(openRouterKey, env("EMBEDDING_MODEL", "openai/text-embedding-3-small"))
+	embClient := embeddings.NewClient(openRouterKey, env("EMBEDDING_MODEL", "openai/text-embedding-3-large"))
 	llmClient := llm.NewClient(openRouterKey, env("OPENROUTER_MODEL", "openai/gpt-4o-mini"))
 
 	vsClient, err := connectQdrantWithRetry(ctx)
@@ -117,7 +117,7 @@ func main() {
 	registerStaticFrontend(mux)
 
 	addr := ":" + port
-	slog.Info("servidor_iniciado", "addr", addr, "web", "./web", "uploads", uploadDir)
+	slog.Info("servidor_iniciado", "addr", addr, "web", "embedded", "uploads", uploadDir)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -134,7 +134,7 @@ func connectQdrantWithRetry(ctx context.Context) (*vectorstore.Client, error) {
 	host := env("QDRANT_HOST", "qdrant")
 	port := env("QDRANT_PORT", "6334")
 	collection := env("QDRANT_COLLECTION", "semantic_docs")
-	vectorSize := embeddingDim(env("EMBEDDING_MODEL", "openai/text-embedding-3-small"))
+	vectorSize := embeddingDim(env("EMBEDDING_MODEL", "openai/text-embedding-3-large"))
 
 	var lastErr error
 	for attempt := 1; attempt <= 30; attempt++ {
@@ -157,21 +157,11 @@ func connectQdrantWithRetry(ctx context.Context) (*vectorstore.Client, error) {
 }
 
 func registerStaticFrontend(mux *http.ServeMux) {
-	webDir := "./web"
-	indexPath := filepath.Join(webDir, "index.html")
-
-	if _, err := os.Stat(indexPath); err != nil {
-		slog.Warn("frontend_no_encontrado", "path", indexPath)
-		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("Semantic Core RAG API activa. Copia web/index.html para habilitar la interfaz.\n"))
-		})
-		return
-	}
-
-	fileServer := http.FileServer(http.Dir(webDir))
-	mux.Handle("GET /", fileServer)
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(webui.IndexHTML)
+	})
 }
 
 func withCORS(next http.Handler) http.Handler {
@@ -254,7 +244,7 @@ func embeddingDim(model string) uint64 {
 	case strings.Contains(model, "text-embedding-ada-002"):
 		return 1536
 	default:
-		return 1536 // text-embedding-3-small y otros
+		return 3072 // valor por defecto para mantener la configuracion grande
 	}
 }
 
