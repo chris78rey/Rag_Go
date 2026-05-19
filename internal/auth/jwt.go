@@ -45,6 +45,7 @@ func (s *Service) CheckPassword(hash, password string) bool {
 
 // GenerateToken creates a signed JWT for the given user.
 func (s *Service) GenerateToken(userID, email, role, planCode string) (string, error) {
+	planCode = NormalizePlanCode(planCode)
 	claims := Claims{
 		UserID:   userID,
 		Email:    email,

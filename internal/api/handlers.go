@@ -121,6 +121,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	planCode = auth.NormalizePlanCode(planCode)
+
 	if !active {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "usuario desactivado"})
 		return
@@ -170,6 +172,8 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	planCode = auth.NormalizePlanCode(planCode)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"id":         userID,
 		"email":      email,
@@ -192,7 +196,7 @@ type UploadResponse struct {
 
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
-	planCode := auth.GetPlanCode(r.Context())
+	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
 
 	maxBytes := maxUploadBytesByPlan(planCode)
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
@@ -579,17 +583,17 @@ type UsageResponse struct {
 
 func (s *Server) handleUsageToday(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
-	planCode := auth.GetPlanCode(r.Context())
+	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
 
 	count := s.getTodayQueryCount(r.Context(), userID)
 
 	resp := UsageResponse{
 		QueryCount:  count,
-		IsUnlimited: planCode == "unlimited",
+		IsUnlimited: planCode == auth.PlanCodePremium,
 	}
 
-	if planCode != "unlimited" {
-		limit := 40
+	if planCode != auth.PlanCodePremium {
+		limit := 50
 		remaining := limit - count
 		if remaining < 0 {
 			remaining = 0
@@ -616,7 +620,7 @@ type ChatMetadata struct {
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
-	planCode := auth.GetPlanCode(r.Context())
+	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
 
 	var req ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -631,11 +635,12 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Check daily quota
-	if planCode != "unlimited" {
+	if planCode != auth.PlanCodePremium {
+		const limit = 50
 		count := s.getTodayQueryCount(ctx, userID)
-		if count >= 40 {
+		if count >= limit {
 			writeJSON(w, http.StatusTooManyRequests, map[string]string{
-				"error": "límite diario de consultas alcanzado (40/40). Espera hasta mañana o actualiza tu plan.",
+				"error": "límite diario de consultas alcanzado (50/50). Espera hasta mañana o actualiza tu plan.",
 			})
 			return
 		}
@@ -781,8 +786,8 @@ func (s *Server) incrementUsage(ctx context.Context, userID string) {
 // --- Plan helpers ---
 
 func maxUploadBytesByPlan(planCode string) int64 {
-	switch planCode {
-	case "unlimited":
+	switch auth.NormalizePlanCode(planCode) {
+	case auth.PlanCodePremium:
 		return 1024 << 20 // 1 GB
 	default:
 		return 100 << 20 // 100 MB

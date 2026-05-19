@@ -83,9 +83,9 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		role = "admin"
 	}
 
-	planCode := req.PlanCode
-	if planCode != "basic" && planCode != "unlimited" {
-		planCode = "basic"
+	planCode := auth.NormalizePlanCode(req.PlanCode)
+	if planCode != auth.PlanCodeNormal && planCode != auth.PlanCodePremium {
+		planCode = auth.PlanCodeNormal
 	}
 
 	hash, err := h.authSvc.HashPassword(req.Password)
@@ -198,8 +198,9 @@ func (h *Handler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.PlanCode != "basic" && req.PlanCode != "unlimited" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "plan inválido (basic | unlimited)"})
+	req.PlanCode = auth.NormalizePlanCode(req.PlanCode)
+	if req.PlanCode != auth.PlanCodeNormal && req.PlanCode != auth.PlanCodePremium {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "plan inválido (normal | premium)"})
 		return
 	}
 

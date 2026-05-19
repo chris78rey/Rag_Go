@@ -37,7 +37,7 @@ func RequireAuth(service *Service) func(http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, ctxUserID, claims.UserID)
 			ctx = context.WithValue(ctx, ctxEmail, claims.Email)
 			ctx = context.WithValue(ctx, ctxRole, claims.Role)
-			ctx = context.WithValue(ctx, ctxPlanCode, claims.PlanCode)
+			ctx = context.WithValue(ctx, ctxPlanCode, NormalizePlanCode(claims.PlanCode))
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

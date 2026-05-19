@@ -527,8 +527,8 @@
               </label>
               <label>Plan
                 <select id="newUserPlan">
-                  <option value="basic">basic</option>
-                  <option value="unlimited">unlimited</option>
+                  <option value="normal">Normal</option>
+                  <option value="premium">Premium</option>
                 </select>
               </label>
               <button id="createUserBtn">Crear</button>
@@ -820,8 +820,8 @@
           <td>${escapeHtml(user.role)}</td>
           <td>
             <select data-plan-for="${escapeHtml(user.id)}">
-              <option value="basic" ${user.plan_code === "basic" ? "selected" : ""}>basic</option>
-              <option value="unlimited" ${user.plan_code === "unlimited" ? "selected" : ""}>unlimited</option>
+              <option value="normal" ${user.plan_code === "normal" ? "selected" : ""}>Normal</option>
+              <option value="premium" ${user.plan_code === "premium" ? "selected" : ""}>Premium</option>
             </select>
           </td>
           <td>${user.active ? "Si" : "No"}</td>
