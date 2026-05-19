@@ -71,6 +71,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux, authMw func(http.Handler) ht
 
 	// Authenticated
 	mux.Handle("GET /api/me", authMw(http.HandlerFunc(s.handleMe)))
+	mux.Handle("PATCH /api/me/password", authMw(http.HandlerFunc(s.handleChangePassword)))
 	mux.Handle("POST /api/documents/upload", authMw(http.HandlerFunc(s.handleUpload)))
 	mux.Handle("POST /api/documents/text", authMw(http.HandlerFunc(s.handleUploadText)))
 	mux.Handle("GET /api/documents", authMw(http.HandlerFunc(s.handleListDocuments)))
@@ -94,6 +95,11 @@ type LoginResponse struct {
 	Role                  string `json:"role"`
 	PlanCode              string `json:"plan_code"`
 	SubscriptionExpiresAt string `json:"subscription_expires_at"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -180,15 +186,86 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	planCode = auth.NormalizePlanCode(planCode)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"id":         userID,
-		"email":      email,
-		"full_name":  fullName,
-		"role":       role,
-		"plan_code":  planCode,
-		"active":     active,
-		"created_at": createdAt,
+		"id":                      userID,
+		"email":                   email,
+		"full_name":               fullName,
+		"role":                    role,
+		"plan_code":               planCode,
+		"active":                  active,
+		"created_at":              createdAt,
 		"subscription_expires_at": expiresAt,
 	})
+}
+
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserID(r.Context())
+
+	var hash string
+	err := s.db.QueryRowContext(r.Context(),
+		`SELECT password_hash FROM users WHERE id = ?`, userID,
+	).Scan(&hash)
+	if err == sql.ErrNoRows {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "usuario no encontrado"})
+		return
+	}
+	if err != nil {
+		slog.Error("cambio_password_query", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "error interno"})
+		return
+	}
+
+	var req ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Solicitud inválida"})
+		return
+	}
+
+	req.CurrentPassword = strings.TrimSpace(req.CurrentPassword)
+	req.NewPassword = strings.TrimSpace(req.NewPassword)
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "contraseña actual y nueva requeridas"})
+		return
+	}
+	if len(req.NewPassword) < 6 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "password mínimo 6 caracteres"})
+		return
+	}
+
+	if !s.authSvc.CheckPassword(hash, req.CurrentPassword) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "contraseña actual incorrecta"})
+		return
+	}
+
+	newHash, err := s.authSvc.HashPassword(req.NewPassword)
+	if err != nil {
+		slog.Error("cambio_password_hash", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "error interno"})
+		return
+	}
+
+	res, err := s.db.ExecContext(r.Context(),
+		"UPDATE users SET password_hash = ? WHERE id = ?",
+		newHash, userID,
+	)
+	if err != nil {
+		slog.Error("cambio_password_update", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "actualizando contraseña"})
+		return
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("cambio_password_rows", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "actualizando contraseña"})
+		return
+	}
+	if affected == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "usuario no encontrado"})
+		return
+	}
+
+	slog.Info("password_cambiada", "user_id", userID)
+	writeJSON(w, http.StatusOK, map[string]string{"message": "contraseña actualizada"})
 }
 
 // --- Upload ---

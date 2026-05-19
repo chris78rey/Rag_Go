@@ -49,6 +49,10 @@ type RegisterPaymentRequest struct {
 	Notes  string  `json:"notes"`
 }
 
+type SetPasswordRequest struct {
+	Password string `json:"password"`
+}
+
 type UpdateUserRequest struct {
 	FullName *string `json:"full_name,omitempty"`
 	Active   *bool   `json:"active,omitempty"`
@@ -231,6 +235,54 @@ func (h *Handler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("plan_actualizado", "user_id", userID, "plan", req.PlanCode)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "plan actualizado"})
+}
+
+// UpdatePassword changes a user's password (admin-only).
+func (h *Handler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
+	userID := r.PathValue("id")
+
+	var req SetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body inválido"})
+		return
+	}
+
+	req.Password = strings.TrimSpace(req.Password)
+	if len(req.Password) < 6 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "password mínimo 6 caracteres"})
+		return
+	}
+
+	hash, err := h.authSvc.HashPassword(req.Password)
+	if err != nil {
+		slog.Error("hash_password", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "error interno"})
+		return
+	}
+
+	res, err := h.db.ExecContext(r.Context(),
+		"UPDATE users SET password_hash = ? WHERE id = ?",
+		hash, userID,
+	)
+	if err != nil {
+		slog.Error("actualizando_password", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "actualizando contraseña"})
+		return
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("filas_password", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "actualizando contraseña"})
+		return
+	}
+	if affected == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "usuario no encontrado"})
+		return
+	}
+
+	slog.Info("password_actualizada", "user_id", userID)
+	writeJSON(w, http.StatusOK, map[string]string{"message": "contraseña actualizada"})
 }
 
 // GetUsage returns daily usage for all users (admin-only).

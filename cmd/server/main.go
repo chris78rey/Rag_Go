@@ -97,6 +97,7 @@ func main() {
 	mux.Handle("POST /api/admin/users", adminMw(http.HandlerFunc(adminHandler.CreateUser)))
 	mux.Handle("PATCH /api/admin/users/{id}", adminMw(http.HandlerFunc(adminHandler.UpdateUser)))
 	mux.Handle("PATCH /api/admin/users/{id}/plan", adminMw(http.HandlerFunc(adminHandler.UpdatePlan)))
+	mux.Handle("PATCH /api/admin/users/{id}/password", adminMw(http.HandlerFunc(adminHandler.UpdatePassword)))
 	mux.Handle("GET /api/admin/usage", adminMw(http.HandlerFunc(adminHandler.GetUsage)))
 	mux.Handle("GET /api/admin/users/{id}/documents", adminMw(http.HandlerFunc(adminHandler.GetUserDocuments)))
 	mux.Handle("GET /api/admin/settings", adminMw(http.HandlerFunc(adminHandler.GetSettings)))

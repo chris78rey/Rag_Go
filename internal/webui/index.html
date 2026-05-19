@@ -661,6 +661,20 @@
                 <div class="small">La tabla de documentos muestra progreso real por tarea.</div>
               </div>
             </article>
+
+            <article class="info-card">
+              <div class="subpanel-head">
+                <strong>Seguridad</strong>
+                <span class="small">Cambiar contraseña</span>
+              </div>
+              <div class="subpanel-body stack">
+                <label>Contraseña actual<input id="currentPasswordInput" type="password" autocomplete="current-password" placeholder="Actual" /></label>
+                <label>Nueva contraseña<input id="newPasswordInput" type="password" autocomplete="new-password" placeholder="Nueva" /></label>
+                <label>Confirmar nueva contraseña<input id="confirmPasswordInput" type="password" autocomplete="new-password" placeholder="Repite la nueva" /></label>
+                <button id="changePasswordBtn">Cambiar contraseña</button>
+                <div id="changePasswordStatus" class="status"></div>
+              </div>
+            </article>
           </aside>
         </div>
       </div>
@@ -1253,6 +1267,7 @@
           <td>
             <div class="table-actions">
               <button class="secondary" data-toggle-user="${escapeHtml(user.id)}">${user.active ? "Desactivar" : "Activar"}</button>
+              <button class="small" data-reset-password-user="${escapeHtml(user.id)}" style="background: #7c3aed;">Cambiar clave</button>
               <button class="small" data-pay-user="${escapeHtml(user.id)}" style="background: #0f766e;">Renovar (+30d)</button>
             </div>
           </td>
@@ -1262,6 +1277,10 @@
 
       body.querySelectorAll("[data-toggle-user]").forEach((btn) => {
         btn.addEventListener("click", () => toggleUser(btn.getAttribute("data-toggle-user")));
+      });
+
+      body.querySelectorAll("[data-reset-password-user]").forEach((btn) => {
+        btn.addEventListener("click", () => resetUserPassword(btn.getAttribute("data-reset-password-user")));
       });
 
       body.querySelectorAll("[data-plan-for]").forEach((select) => {
@@ -1604,6 +1623,67 @@
       }
     }
 
+    async function changeOwnPassword() {
+      const currentPassword = $("currentPasswordInput").value.trim();
+      const newPassword = $("newPasswordInput").value.trim();
+      const confirmPassword = $("confirmPasswordInput").value.trim();
+
+      if (!currentPassword || !newPassword) {
+        setStatus("changePasswordStatus", "La contraseña actual y la nueva son requeridas", true);
+        return;
+      }
+      if (newPassword.length < 6) {
+        setStatus("changePasswordStatus", "La nueva contraseña debe tener al menos 6 caracteres", true);
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setStatus("changePasswordStatus", "Las contraseñas nuevas no coinciden", true);
+        return;
+      }
+
+      try {
+        await api("/api/me/password", {
+          method: "PATCH",
+          body: JSON.stringify({
+            current_password: currentPassword,
+            new_password: newPassword,
+          }),
+        });
+        $("currentPasswordInput").value = "";
+        $("newPasswordInput").value = "";
+        $("confirmPasswordInput").value = "";
+        setStatus("changePasswordStatus", "Contraseña actualizada");
+      } catch (err) {
+        setStatus("changePasswordStatus", err.message, true);
+      }
+    }
+
+    async function resetUserPassword(userId) {
+      const password = prompt("Nueva contraseña para este usuario:", "");
+      if (password === null) return;
+
+      const confirm = prompt("Confirma la nueva contraseña:", password);
+      if (confirm === null) return;
+      if (password !== confirm) {
+        alert("Las contraseñas no coinciden");
+        return;
+      }
+      if (password.trim().length < 6) {
+        alert("La contraseña debe tener al menos 6 caracteres");
+        return;
+      }
+
+      try {
+        await api(`/api/admin/users/${encodeURIComponent(userId)}/password`, {
+          method: "PATCH",
+          body: JSON.stringify({ password }),
+        });
+        alert("Contraseña actualizada");
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
     $("loginBtn").addEventListener("click", () => login().catch((err) => setStatus("loginStatus", err.message, true)));
     $("logoutBtn").addEventListener("click", logout);
     $("refreshBtn").addEventListener("click", () => Promise.all([loadUsage(), loadDocuments(), loadUsers()]).catch((err) => alert(err.message)));
@@ -1616,6 +1696,7 @@
     }));
     $("clearChatBtn").addEventListener("click", clearChat);
     $("createUserBtn").addEventListener("click", () => createUser().catch((err) => setStatus("createUserStatus", err.message, true)));
+    $("changePasswordBtn").addEventListener("click", () => changeOwnPassword().catch((err) => setStatus("changePasswordStatus", err.message, true)));
     $("refreshUsersBtn").addEventListener("click", () => loadUsers().catch((err) => setStatus("createUserStatus", err.message, true)));
     document.querySelectorAll("[data-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
