@@ -6,33 +6,61 @@ import (
 	"embed"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
-	_ "github.com/lib/pq"
+	_ "modernc.org/sqlite"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// DB wraps the PostgreSQL connection pool.
+// DB wraps the SQLite connection pool.
 type DB struct {
 	Pool *sql.DB
 }
 
-// New opens a PostgreSQL connection and runs migrations.
-func New(ctx context.Context, dsn string) (*DB, error) {
-	pool, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("abriendo PostgreSQL: %w", err)
+// New opens a SQLite database and runs migrations.
+func New(ctx context.Context, path string) (*DB, error) {
+	if path == "" {
+		path = "data/rag.db"
 	}
 
-	pool.SetMaxOpenConns(25)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("creando directorio de datos: %w", err)
+	}
+
+	dsn := sqliteDSN(path)
+	pool, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("abriendo SQLite: %w", err)
+	}
+
+	pool.SetMaxOpenConns(5)
 	pool.SetMaxIdleConns(5)
+
+	if _, err := pool.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("configurando foreign_keys: %w", err)
+	}
+	if _, err := pool.ExecContext(ctx, `PRAGMA journal_mode = WAL`); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("configurando journal_mode: %w", err)
+	}
+	if _, err := pool.ExecContext(ctx, `PRAGMA busy_timeout = 5000`); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("configurando busy_timeout: %w", err)
+	}
+	if _, err := pool.ExecContext(ctx, `PRAGMA synchronous = NORMAL`); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("configurando synchronous: %w", err)
+	}
 
 	if err := pool.PingContext(ctx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("conectando a PostgreSQL: %w", err)
+		return nil, fmt.Errorf("conectando a SQLite: %w", err)
 	}
 
 	db := &DB{Pool: pool}
@@ -42,7 +70,7 @@ func New(ctx context.Context, dsn string) (*DB, error) {
 		return nil, fmt.Errorf("ejecutando migraciones: %w", err)
 	}
 
-	slog.Info("postgresql_conectado")
+	slog.Info("sqlite_conectado", "path", path)
 	return db, nil
 }
 
@@ -52,11 +80,10 @@ func (db *DB) Close() error {
 }
 
 func (db *DB) runMigrations(ctx context.Context) error {
-	// Create migrations tracking table
 	_, err := db.Pool.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
-			filename VARCHAR(255) PRIMARY KEY,
-			applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+			filename TEXT PRIMARY KEY,
+			applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
 	if err != nil {
@@ -77,10 +104,9 @@ func (db *DB) runMigrations(ctx context.Context) error {
 			continue
 		}
 
-		// Check if already applied
 		var exists bool
 		err := db.Pool.QueryRowContext(ctx,
-			"SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE filename = $1)",
+			"SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE filename = ?)",
 			entry.Name(),
 		).Scan(&exists)
 		if err != nil {
@@ -90,7 +116,6 @@ func (db *DB) runMigrations(ctx context.Context) error {
 			continue
 		}
 
-		// Read and execute migration
 		content, err := migrationsFS.ReadFile("migrations/" + entry.Name())
 		if err != nil {
 			return fmt.Errorf("leyendo archivo %s: %w", entry.Name(), err)
@@ -109,7 +134,7 @@ func (db *DB) runMigrations(ctx context.Context) error {
 		}
 
 		if _, err := tx.ExecContext(ctx,
-			"INSERT INTO schema_migrations (filename) VALUES ($1)",
+			"INSERT INTO schema_migrations (filename) VALUES (?)",
 			entry.Name(),
 		); err != nil {
 			tx.Rollback()
@@ -122,4 +147,12 @@ func (db *DB) runMigrations(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func sqliteDSN(path string) string {
+	clean := filepath.ToSlash(path)
+	if strings.HasPrefix(clean, "file:") {
+		return clean
+	}
+	return "file:" + clean
 }

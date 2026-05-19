@@ -1,12 +1,11 @@
 -- 002_system_settings.sql
--- Configuración global del sistema (título, nombre, etc.)
+-- Configuracion global del sistema para SQLite.
 
 CREATE TABLE IF NOT EXISTS system_settings (
-    key VARCHAR(100) PRIMARY KEY,
+    key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO system_settings (key, value) VALUES
-    ('app_title', 'Semantic Core RAG')
-ON CONFLICT (key) DO NOTHING;
+INSERT OR IGNORE INTO system_settings (key, value) VALUES
+    ('app_title', 'Semantic Core RAG');

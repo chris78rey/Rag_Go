@@ -6,8 +6,8 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -42,16 +42,12 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	dsn := dbDSN(
-		env("DB_HOST", "postgres"),
-		env("DB_PORT", "5432"),
-		env("DB_USER", "raguser"),
-		env("DB_PASSWORD", "ragpass"),
-		env("DB_NAME", "ragdb"),
-	)
-	db, err := database.New(ctx, dsn)
+	dbPath := env("DB_PATH", "data/rag.db")
+	mustMkdir(filepath.Dir(dbPath))
+
+	db, err := database.New(ctx, dbPath)
 	if err != nil {
-		log.Fatalf("postgres no disponible: %v", err)
+		log.Fatalf("sqlite no disponible: %v", err)
 	}
 	defer db.Close()
 
@@ -246,17 +242,6 @@ func embeddingDim(model string) uint64 {
 	default:
 		return 3072 // valor por defecto para mantener la configuracion grande
 	}
-}
-
-func dbDSN(host, port, user, password, dbname string) string {
-	u := url.URL{
-		Scheme:   "postgres",
-		User:     url.UserPassword(user, password),
-		Host:     host + ":" + port,
-		Path:     dbname,
-		RawQuery: "sslmode=disable",
-	}
-	return u.String()
 }
 
 func mustMkdir(path string) {

@@ -1,73 +1,16 @@
-version: "3.8"
-
 services:
   server:
     build: .
     ports:
       - "8080:8080"
     environment:
-      - PORT=8080
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openai/gpt-4o-mini}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-openai/text-embedding-3-large}
-      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-rag}
-      - DB_PASSWORD=${DB_PASSWORD:-ragpass}
-      - DB_NAME=${DB_NAME:-ragdb}
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6334
-      - QDRANT_COLLECTION=semantic_docs
-      - CHUNK_SIZE=${CHUNK_SIZE:-512}
-      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-64}
-      - TOP_K=${TOP_K:-10}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - UPLOAD_DIR=/app/uploads
-      - TMP_DIR=/tmp
-      - CORS_ALLOW_ORIGIN=${CORS_ALLOW_ORIGIN:-*}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?define_OPENROUTER_API_KEY}
     depends_on:
-      postgres:
-        condition: service_healthy
       qdrant:
         condition: service_started
     volumes:
       - uploads:/app/uploads
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_DB=ragdb
-      - POSTGRES_USER=rag
-      - POSTGRES_PASSWORD=ragpass
-    command:
-      - postgres
-      - -c
-      - shared_buffers=32MB
-      - -c
-      - work_mem=1MB
-      - -c
-      - maintenance_work_mem=16MB
-      - -c
-      - max_connections=20
-      - -c
-      - effective_cache_size=128MB
-      - -c
-      - checkpoint_timeout=15min
-      - -c
-      - checkpoint_completion_target=0.9
-      - -c
-      - wal_buffers=1MB
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rag -d ragdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
+      - data:/app/data
     restart: unless-stopped
 
   qdrant:
@@ -80,6 +23,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   qdrant_storage:
   uploads:
+  data:

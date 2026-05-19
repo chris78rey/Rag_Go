@@ -108,7 +108,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	err := s.db.QueryRowContext(r.Context(),
 		`SELECT u.id, u.password_hash, u.role, p.code, u.active
 		 FROM users u JOIN plans p ON u.plan_id = p.id
-		 WHERE u.email = $1`, email,
+		 WHERE u.email = ?`, email,
 	).Scan(&userID, &hash, &role, &planCode, &active)
 
 	if err == sql.ErrNoRows {
@@ -156,12 +156,13 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 
 	var email, fullName, role, planCode string
 	var active bool
-	var createdAt time.Time
+	var createdAt string
 
 	err := s.db.QueryRowContext(r.Context(),
-		`SELECT u.email, u.full_name, u.role, p.code, u.active, u.created_at
+		`SELECT u.email, u.full_name, u.role, p.code, u.active,
+		        strftime('%Y-%m-%dT%H:%M:%fZ', u.created_at)
 		 FROM users u JOIN plans p ON u.plan_id = p.id
-		 WHERE u.id = $1`, userID,
+		 WHERE u.id = ?`, userID,
 	).Scan(&email, &fullName, &role, &planCode, &active, &createdAt)
 
 	if err != nil {
@@ -176,7 +177,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		"role":       role,
 		"plan_code":  planCode,
 		"active":     active,
-		"created_at": createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		"created_at": createdAt,
 	})
 }
 
@@ -236,7 +237,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// Register document in DB
 	_, err = s.db.ExecContext(r.Context(),
 		`INSERT INTO documents (id, user_id, filename, original_filename, size_bytes, status)
-		 VALUES ($1, $2, $3, $4, $5, 'processing')`,
+		 VALUES (?, ?, ?, ?, ?, 'processing')`,
 		documentID, userID, savePath, header.Filename, size,
 	)
 	if err != nil {
@@ -307,7 +308,7 @@ func (s *Server) handleUploadText(w http.ResponseWriter, r *http.Request) {
 	// Register in DB
 	_, err := s.db.ExecContext(r.Context(),
 		`INSERT INTO documents (id, user_id, filename, original_filename, size_bytes, status)
-		 VALUES ($1, $2, $3, $4, $5, 'processing')`,
+		 VALUES (?, ?, ?, ?, ?, 'processing')`,
 		documentID, userID, savePath, title+".txt", int64(len(text)),
 	)
 	if err != nil {
@@ -428,7 +429,7 @@ func (s *Server) processDocument(taskID, documentID, userID, filePath, filename 
 
 func (s *Server) updateDocumentStatus(docID, status string) {
 	_, err := s.db.ExecContext(context.Background(),
-		"UPDATE documents SET status = $1 WHERE id = $2", status, docID)
+		"UPDATE documents SET status = ? WHERE id = ?", status, docID)
 	if err != nil {
 		slog.Error("actualizando_estado_documento", "doc_id", docID, "error", err)
 	}
@@ -437,8 +438,8 @@ func (s *Server) updateDocumentStatus(docID, status string) {
 func (s *Server) updateDocumentProgress(docID, status string, processedChunks, totalChunks int) {
 	_, err := s.db.ExecContext(context.Background(),
 		`UPDATE documents
-		 SET status = $1, chunks = $2, processed_chunks = $3, total_chunks = $4
-		 WHERE id = $5`,
+		 SET status = ?, chunks = ?, processed_chunks = ?, total_chunks = ?
+		 WHERE id = ?`,
 		status, totalChunks, processedChunks, totalChunks, docID,
 	)
 	if err != nil {
@@ -452,8 +453,9 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
 
 	rows, err := s.db.QueryContext(r.Context(),
-		`SELECT id, original_filename, size_bytes, status, chunks, processed_chunks, total_chunks, created_at
-		 FROM documents WHERE user_id = $1
+		`SELECT id, original_filename, size_bytes, status, chunks, processed_chunks, total_chunks,
+		        strftime('%Y-%m-%dT%H:%M:%fZ', created_at)
+		 FROM documents WHERE user_id = ?
 		 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
@@ -476,11 +478,9 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	var docs []DocResponse
 	for rows.Next() {
 		var d DocResponse
-		var createdAt time.Time
-		if err := rows.Scan(&d.ID, &d.OriginalFilename, &d.SizeBytes, &d.Status, &d.Chunks, &d.ProcessedChunks, &d.TotalChunks, &createdAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.OriginalFilename, &d.SizeBytes, &d.Status, &d.Chunks, &d.ProcessedChunks, &d.TotalChunks, &d.CreatedAt); err != nil {
 			continue
 		}
-		d.CreatedAt = createdAt.Format("2006-01-02T15:04:05Z07:00")
 		docs = append(docs, d)
 	}
 
@@ -500,7 +500,7 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 	// Verify ownership
 	var ownerID string
 	err := s.db.QueryRowContext(r.Context(),
-		"SELECT user_id FROM documents WHERE id = $1", docID,
+		"SELECT user_id FROM documents WHERE id = ?", docID,
 	).Scan(&ownerID)
 	if err == sql.ErrNoRows {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "documento no encontrado"})
@@ -523,7 +523,7 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete from PostgreSQL
-	_, err = s.db.ExecContext(r.Context(), "DELETE FROM documents WHERE id = $1", docID)
+	_, err = s.db.ExecContext(r.Context(), "DELETE FROM documents WHERE id = ?", docID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "eliminando documento"})
 		return
@@ -752,7 +752,7 @@ func (s *Server) getTodayQueryCount(ctx context.Context, userID string) int {
 	var count int
 	err := s.db.QueryRowContext(ctx,
 		`SELECT query_count FROM daily_usage
-		 WHERE user_id = $1 AND usage_date = CURRENT_DATE`,
+		 WHERE user_id = ? AND usage_date = DATE('now')`,
 		userID,
 	).Scan(&count)
 	if err == sql.ErrNoRows {
@@ -768,9 +768,9 @@ func (s *Server) getTodayQueryCount(ctx context.Context, userID string) int {
 func (s *Server) incrementUsage(ctx context.Context, userID string) {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO daily_usage (user_id, usage_date, query_count)
-		 VALUES ($1, CURRENT_DATE, 1)
-		 ON CONFLICT (user_id, usage_date)
-		 DO UPDATE SET query_count = daily_usage.query_count + 1`,
+		 VALUES (?, DATE('now'), 1)
+		 ON CONFLICT(user_id, usage_date)
+		 DO UPDATE SET query_count = query_count + 1`,
 		userID,
 	)
 	if err != nil {

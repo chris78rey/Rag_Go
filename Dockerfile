@@ -18,7 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /server /usr/local/bin/server
 
-RUN mkdir -p /app/uploads /tmp
+RUN mkdir -p /app/uploads /app/data /tmp
 
 EXPOSE 8080
 

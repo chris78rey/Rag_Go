@@ -1,59 +1,28 @@
-# Patch listo para levantar Semantic Core RAG con interfaz web
+# Deploy con SQLite
 
-Este ZIP contiene archivos para completar el proyecto actual.
+La aplicacion ya no usa PostgreSQL. Ahora funciona con SQLite local y con menos piezas para desplegar.
 
-## Archivos incluidos
+Componentes:
+- `server` en Go
+- `qdrant`
+- volumen `uploads`
+- volumen `data` para `data/rag.db`
 
-```text
-cmd/server/main.go
-docker-compose.yml
-Dockerfile
-.env.example
-internal/webui/index.html
-internal/vectorstore/qdrant.go
-internal/api/handlers.go
-```
+## Variable obligatoria
 
-## Qué corrige
-
-1. Agrega el archivo `cmd/server/main.go`, necesario porque el `Dockerfile` compila `./cmd/server`.
-2. Agrega `docker-compose.yml` con:
-   - server Go
-   - PostgreSQL
-   - Qdrant
-3. Sirve la interfaz web desde `http://localhost:8080`.
-4. Registra rutas administrativas:
-   - `GET /api/admin/users`
-   - `POST /api/admin/users`
-   - `PATCH /api/admin/users/{id}`
-   - `PATCH /api/admin/users/{id}/plan`
-   - `GET /api/admin/usage`
-   - `GET /api/admin/users/{id}/documents`
-5. Embebe la interfaz web dentro del binario Go para evitar depender de una capa web separada en el VPS.
-6. Corrige el ID de puntos en Qdrant para que sea un UUID válido.
-7. Actualiza el campo `chunks` en PostgreSQL cuando termina la ingesta.
-
-## Cómo aplicar en PowerShell
-
-Desde la raíz del proyecto:
-
-```powershell
-Expand-Archive .\rag_go_web_ready_patch.zip -DestinationPath . -Force
-copy .env.example .env
-notepad .env
-```
-
-Colocar la clave real:
+Solo necesitas esta variable externa:
 
 ```env
-OPENROUTER_API_KEY=sk-or-v1-tu-clave-real
+OPENROUTER_API_KEY=tu_clave_real
 ```
 
-Levantar:
+El resto usa valores por defecto dentro del binario Go.
+
+## Local
 
 ```powershell
-docker compose down
-docker compose up --build
+copy .env.example .env
+docker compose up -d --build
 ```
 
 Abrir:
@@ -62,6 +31,15 @@ Abrir:
 http://localhost:8080
 ```
 
+## VPS
+
+```powershell
+copy .env_vps.example .env_vps
+docker compose -f docker-compose_vps.yml up -d --build
+```
+
+Si usas Traefik o Coolify, el dominio y las etiquetas siguen configurados en `docker-compose_vps.yml`.
+
 ## Usuario inicial
 
 ```text
@@ -69,9 +47,8 @@ Email: admin@rag.local
 Password: admin123
 ```
 
-## Nota importante
+## Notas
 
-La dimension de embeddings ya no se define manualmente con `EMBEDDING_DIM`.
-El backend infiere la dimension desde `EMBEDDING_MODEL`.
-
-Por defecto se usa `openai/text-embedding-3-large`, con dimension 3072.
+- La UI ya viene embebida dentro del binario Go.
+- Los archivos subidos se guardan en `uploads`.
+- La base SQLite persiste en `data/rag.db`.
