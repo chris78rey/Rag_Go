@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -194,11 +195,137 @@ type UploadResponse struct {
 	Message    string `json:"message"`
 }
 
+var (
+	errRepoQuotaExceeded         = errors.New("repo quota exceeded")
+	errStorageQuotaExceeded      = errors.New("storage quota exceeded")
+	errConcurrentUploadsExceeded = errors.New("concurrent uploads exceeded")
+)
+
+type uploadQuotaInfo struct {
+	cfg             planConfig
+	documentCount   int
+	storageBytes    int64
+	processingCount int
+}
+
+func (s *Server) resolvePlanConfig(ctx context.Context, planCode string) planConfig {
+	cfg, err := s.loadPlanConfig(ctx, planCode)
+	if err != nil {
+		slog.Warn("cargando_config_plan", "plan", planCode, "error", err)
+		return fallbackPlanConfig(planCode)
+	}
+	return cfg
+}
+
+func (s *Server) checkUploadQuota(ctx context.Context, userID, planCode string, additionalBytes int64) (uploadQuotaInfo, error) {
+	cfg := s.resolvePlanConfig(ctx, planCode)
+
+	documentCount, err := s.countDocuments(ctx, userID)
+	if err != nil {
+		return uploadQuotaInfo{}, err
+	}
+	if documentCount >= cfg.RepositoryLimit {
+		return uploadQuotaInfo{}, errRepoQuotaExceeded
+	}
+
+	processingCount, err := s.countProcessingDocuments(ctx, userID)
+	if err != nil {
+		return uploadQuotaInfo{}, err
+	}
+	if processingCount >= cfg.MaxConcurrentUploads {
+		return uploadQuotaInfo{}, errConcurrentUploadsExceeded
+	}
+
+	storageBytes, err := s.sumStorageBytes(ctx, userID)
+	if err != nil {
+		return uploadQuotaInfo{}, err
+	}
+	if additionalBytes < 0 {
+		additionalBytes = 0
+	}
+	if storageBytes+additionalBytes > cfg.maxStorageBytes() {
+		return uploadQuotaInfo{}, errStorageQuotaExceeded
+	}
+
+	return uploadQuotaInfo{
+		cfg:             cfg,
+		documentCount:   documentCount,
+		storageBytes:    storageBytes,
+		processingCount: processingCount,
+	}, nil
+}
+
+func isRequestTooLargeError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		return true
+	}
+
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "request body too large") || strings.Contains(lower, "multipart: message too large")
+}
+
+func removeUploadFile(path string) {
+	if path == "" {
+		return
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Warn("limpiando_archivo_temporal", "path", path, "error", err)
+	}
+}
+
+func writeQuotaError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writeRateLimitError(w http.ResponseWriter, limit int, action string) {
+	if limit <= 0 {
+		return
+	}
+
+	writeJSON(w, http.StatusTooManyRequests, map[string]string{
+		"error": fmt.Sprintf("límite de %s alcanzado (%d por minuto)", action, limit),
+	})
+}
+
+func writeUploadQuotaError(w http.ResponseWriter, cfg planConfig, err error) {
+	switch {
+	case errors.Is(err, errRepoQuotaExceeded):
+		writeQuotaError(w, http.StatusForbidden, fmt.Sprintf("tu plan permite hasta %d repositorios activos", cfg.RepositoryLimit))
+	case errors.Is(err, errStorageQuotaExceeded):
+		writeQuotaError(w, http.StatusForbidden, fmt.Sprintf("tu plan permite hasta %d MB totales de almacenamiento", cfg.MaxTotalStorageMB))
+	case errors.Is(err, errConcurrentUploadsExceeded):
+		writeQuotaError(w, http.StatusTooManyRequests, fmt.Sprintf("solo puedes tener %d cargas en proceso al mismo tiempo", cfg.MaxConcurrentUploads))
+	case errors.Is(err, errRateLimitExceeded):
+		writeRateLimitError(w, cfg.UploadsPerMinute, "subidas")
+	default:
+		writeQuotaError(w, http.StatusForbidden, "cuota de carga excedida")
+	}
+}
+
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
 	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
+	cfg := s.resolvePlanConfig(r.Context(), planCode)
 
-	maxBytes := maxUploadBytesByPlan(planCode)
+	if err := s.enforceRateLimit(r.Context(), userID, "upload", cfg.UploadsPerMinute); err != nil {
+		if errors.Is(err, errRateLimitExceeded) {
+			writeRateLimitError(w, cfg.UploadsPerMinute, "subidas")
+			return
+		}
+		slog.Warn("rate_limit_upload", "user_id", userID, "error", err)
+	}
+
+	if _, err := s.checkUploadQuota(r.Context(), userID, planCode, 0); err != nil {
+		writeUploadQuotaError(w, cfg, err)
+		return
+	}
+
+	maxBytes := cfg.maxUploadBytes()
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 
 	if err := r.ParseMultipartForm(maxBytes); err != nil {
@@ -275,6 +402,21 @@ type UploadTextRequest struct {
 
 func (s *Server) handleUploadText(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
+	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
+	cfg := s.resolvePlanConfig(r.Context(), planCode)
+
+	if err := s.enforceRateLimit(r.Context(), userID, "upload", cfg.UploadsPerMinute); err != nil {
+		if errors.Is(err, errRateLimitExceeded) {
+			writeRateLimitError(w, cfg.UploadsPerMinute, "subidas")
+			return
+		}
+		slog.Warn("rate_limit_upload", "user_id", userID, "error", err)
+	}
+
+	if _, err := s.checkUploadQuota(r.Context(), userID, planCode, 0); err != nil {
+		writeUploadQuotaError(w, cfg, err)
+		return
+	}
 
 	var req UploadTextRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

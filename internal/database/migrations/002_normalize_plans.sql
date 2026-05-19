@@ -4,13 +4,13 @@
 UPDATE plans
 SET code = 'normal',
     name = 'Plan Normal',
-    max_upload_mb = 100,
+    max_upload_mb = 50,
     daily_query_limit = 50
 WHERE code = 'basic';
 
 UPDATE plans
 SET code = 'premium',
     name = 'Plan Premium',
-    max_upload_mb = 1024,
+    max_upload_mb = 150,
     daily_query_limit = NULL
 WHERE code = 'unlimited';

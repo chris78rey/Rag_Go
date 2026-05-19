@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/codex/semantic-rag-go/internal/admin"
@@ -121,9 +123,28 @@ func main() {
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("servidor detenido: %v", err)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("servidor detenido: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
+	<-quit
+
+	slog.Info("apagando_servidor...")
+
+	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+
+	if err := server.Shutdown(ctxShutdown); err != nil {
+		slog.Error("error_apagando_servidor", "error", err)
 	}
+
+	slog.Info("servidor_apagado_correctamente")
 }
 
 func connectQdrantWithRetry(ctx context.Context) (*vectorstore.Client, error) {

@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS plans (
 );
 
 INSERT OR IGNORE INTO plans (code, name, max_upload_mb, daily_query_limit) VALUES
-    ('normal', 'Plan Normal', 100, 50),
-    ('premium', 'Plan Premium', 1024, NULL);
+    ('normal', 'Plan Normal', 50, 50),
+    ('premium', 'Plan Premium', 150, NULL);
 
 -- Users
 CREATE TABLE IF NOT EXISTS users (
