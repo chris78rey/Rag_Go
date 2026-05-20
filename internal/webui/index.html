@@ -284,6 +284,7 @@
       display: block;
       font-size: 16px;
       margin-bottom: 4px;
+      word-break: break-all;
     }
 
     .metric-value {
@@ -618,6 +619,43 @@
       padding: 12px 0;
     }
 
+    .drop-zone {
+      border: 2px dashed var(--accent);
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      background: var(--soft);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .drop-zone.dragover {
+      background: rgba(29, 78, 216, 0.12);
+      border-color: var(--accent-2);
+    }
+
+    .chip-container {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .suggestion-chip {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+
+    .suggestion-chip:hover {
+      background: #e2e8f0;
+      color: var(--text);
+    }
+
     @media (max-width: 920px) {
       .grid, .split, .hero-grid, .overview-grid {
         grid-template-columns: 1fr;
@@ -647,7 +685,7 @@
   <main id="loginView" class="login-shell">
     <section class="panel login-card">
       <h1>Asistente Documental</h1>
-      <p class="muted">Ingresa para analizar, consultar y extraer informacion de tus documentos de forma segura.</p>
+      <p class="muted">Ingresa para analizar, consultar y extraer información de tus documentos de forma segura.</p>
       <div class="stack">
         <label>
           Email
@@ -669,11 +707,11 @@
         <div class="mark">R</div>
         <div>
           <strong>Asistente Documental</strong>
-          <span>Plataforma de analisis documental</span>
+          <span>Plataforma de análisis documental</span>
         </div>
       </div>
       <div class="userbar">
-        <div class="pill" id="profileLabel">Sesion activa</div>
+        <div class="pill" id="profileLabel">Sesión activa</div>
         <div class="pill" id="usageLabel">Uso de hoy: -</div>
         <button class="secondary" id="refreshBtn">Actualizar</button>
         <button class="ghost" id="logoutBtn">Salir</button>
@@ -682,19 +720,19 @@
 
     <div id="subscriptionBanner" class="banner hidden"></div>
 
-    <nav class="tabs" id="tabsBar" aria-label="Secciones de la aplicacion">
+    <nav class="tabs" id="tabsBar" aria-label="Secciones de la aplicación">
       <button class="tab-btn active" data-tab="summary" aria-selected="true">Resumen</button>
       <button class="tab-btn" data-tab="upload" aria-selected="false">Cargar</button>
       <button class="tab-btn" data-tab="chat" aria-selected="false">Consultar</button>
       <button class="tab-btn" data-tab="docs" aria-selected="false">Documentos</button>
-      <button class="tab-btn hidden" data-tab="admin" aria-selected="false">Administracion</button>
+      <button class="tab-btn hidden" data-tab="admin" aria-selected="false">Administración</button>
     </nav>
 
     <section class="section panel hero-panel tab-panel" data-tab-panel="summary">
       <div class="panel-head">
         <div>
-          <h2 class="title">Como funciona</h2>
-          <p class="muted">Ingresa para analizar, consultar y extraer informacion de tus documentos de forma segura.</p>
+          <h2 class="title">Cómo funciona</h2>
+          <p class="muted">Ingresa para analizar, consultar y extraer información de tus documentos de forma segura.</p>
         </div>
       </div>
       <div class="panel-body">
@@ -764,14 +802,14 @@
           <aside class="stack">
             <article class="info-card">
               <div class="subpanel-head">
-                <strong>Accesos rapidos</strong>
+                <strong>Accesos rápidos</strong>
                 <span class="small">Ir directo a la tarea</span>
               </div>
               <div class="subpanel-body quick-actions">
                 <button class="secondary" data-jump-tab="upload">Ir a cargar</button>
                 <button class="secondary" data-jump-tab="chat">Ir a consultar</button>
                 <button class="secondary" data-jump-tab="docs">Ver documentos</button>
-                <button class="secondary hidden" data-jump-tab="admin">Abrir administracion</button>
+                <button class="secondary hidden" data-jump-tab="admin">Abrir administración</button>
               </div>
             </article>
 
@@ -812,11 +850,12 @@
           <span class="small">PDF, TXT o MD</span>
         </div>
         <div class="panel-body stack">
-          <label>
-            Archivo
-            <input id="fileInput" type="file" />
-          </label>
-          <button id="uploadBtn">Subir archivo</button>
+          <div id="dropZone" class="drop-zone">
+            <p style="margin: 0 0 4px; font-weight: 600; color: var(--accent);">Arrastra tus archivos aquí o haz clic para examinar</p>
+            <span class="small">Soporta PDF, TXT y MD según límites de tu plan</span>
+            <input id="fileInput" type="file" class="hidden" />
+          </div>
+          <button id="uploadBtn" class="hidden">Subir archivo</button>
           <div id="uploadStatus" class="status"></div>
           <div id="uploadProgressWrap" class="progress-wrap hidden" aria-hidden="true">
             <div id="uploadProgressTrack" class="progress-track">
@@ -827,17 +866,17 @@
 
           <div class="section">
             <div class="inline" style="margin-bottom: 8px;">
-              <strong>O pegar texto</strong>
-              <span class="small">Se indexa como .txt</span>
+              <strong>O pegar texto directo</strong>
+              <span class="small">Se indexará como un documento .txt</span>
             </div>
             <div class="stack">
               <label>
-                Titulo opcional
-                <input id="textTitleInput" type="text" placeholder="Notas internas" />
+                Título opcional del documento
+                <input id="textTitleInput" type="text" placeholder="Notas internas o referencia" />
               </label>
               <label>
-                Texto
-                <textarea id="textBodyInput" placeholder="Pega aqui el contenido"></textarea>
+                Contenido de texto
+                <textarea id="textBodyInput" placeholder="Pega aquí el texto que deseas indexar semánticamente..."></textarea>
               </label>
               <button id="textUploadBtn" class="secondary">Subir texto</button>
               <div id="textUploadStatus" class="status"></div>
@@ -856,20 +895,25 @@
         <div class="panel-head">
           <h2 class="title">Consulta de documentos</h2>
           <div class="inline">
-            <button class="secondary" id="clearChatBtn">Limpiar</button>
+            <button class="secondary" id="clearChatBtn">Limpiar historial</button>
           </div>
         </div>
         <div class="panel-body stack">
           <div id="chatLog" class="chat-log">
-            <div class="bubble assistant">Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la informacion exacta de tus archivos.</div>
+              <div class="bubble assistant">Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la información exacta de tus archivos.</div>
           </div>
           <div class="chat-actions">
-            <button class="secondary copy-last-btn" id="copyLastAnswerBtn" disabled>Copiar ultima respuesta</button>
-            <span class="small">Copia la ultima respuesta generada sin seleccionar texto.</span>
+            <button class="secondary copy-last-btn" id="copyLastAnswerBtn" disabled>Copiar última respuesta</button>
+            <span class="small">Copia el contenido generado de la última respuesta directamente.</span>
+          </div>
+          <div class="chip-container">
+            <button class="suggestion-chip" onclick="injectSuggestion('Haz un resumen ejecutivo de las normas principales de este documento.')">📋 Resumen General</button>
+            <button class="suggestion-chip" onclick="injectSuggestion('Busca discrepancias, contradicciones, penalizaciones o inconsistencias regulatorias en el texto.')">⚠️ Buscar Inconsistencias</button>
+            <button class="suggestion-chip" onclick="injectSuggestion('¿Cuáles son las vigencias, fechas límite, obligaciones clave o plazos taxativos mencionados?')">📅 Plazos y Obligaciones</button>
           </div>
           <label>
-            Pregunta
-            <textarea id="questionInput" placeholder="Escribe tu consulta"></textarea>
+            Pregunta al documento
+            <textarea id="questionInput" placeholder="Escribe tu consulta aquí... (Ctrl + Enter para enviar)"></textarea>
           </label>
           <button id="askBtn">Preguntar</button>
           <div id="chatMeta" class="meta"></div>
@@ -903,8 +947,8 @@
     <section id="adminPanel" class="section panel tab-panel hidden" data-tab-panel="admin">
       <div class="panel-head">
         <div>
-          <h2 class="title">Administracion</h2>
-          <p class="muted">Solo para administradores. Gestion de usuarios y planes en una vista separada.</p>
+          <h2 class="title">Administración</h2>
+          <p class="muted">Solo para administradores. Gestión integral de usuarios, planes y renovaciones.</p>
         </div>
       </div>
       <div class="panel-body">
@@ -1190,8 +1234,8 @@
     }
 
     function getNextStepLabel() {
-      if (!state.user) return "Inicia sesion";
-      if (state.user.role === "admin") return "Abrir administracion";
+      if (!state.user) return "Inicia sesión";
+      if (state.user.role === "admin") return "Abrir administración";
       if (!state.documents.length) return "Cargar tu primer documento";
       const pending = state.documents.find((doc) => String(doc.status || "").toLowerCase() === "processing");
       if (pending) return "Esperar a que termine la carga";
@@ -1294,7 +1338,7 @@
 
     function renderProfile() {
       if (!state.user) {
-        $("profileLabel").textContent = "Sesion activa";
+        $("profileLabel").textContent = "Sesión activa";
         renderTabs();
         renderOverview();
         return;
@@ -1430,6 +1474,12 @@
       });
     }
 
+    function injectSuggestion(text) {
+      const input = $("questionInput");
+      input.value = text;
+      input.focus();
+    }
+
     function appendBubble(role, text = "") {
       const bubble = document.createElement("div");
       bubble.className = `bubble ${role}`;
@@ -1480,9 +1530,9 @@
     function clearChat() {
       lastAssistantAnswer = "";
       $("copyLastAnswerBtn").disabled = true;
-      $("copyLastAnswerBtn").textContent = "Copiar ultima respuesta";
+      $("copyLastAnswerBtn").textContent = "Copiar última respuesta";
       $("chatLog").innerHTML = "";
-      appendBubble("assistant", "Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la informacion exacta de tus archivos.");
+      appendBubble("assistant", "Haz una pregunta sobre tus documentos. La respuesta se genera leyendo la información exacta de tus archivos.");
       $("chatMeta").textContent = "";
     }
 
@@ -1670,7 +1720,7 @@
       $("chatMeta").textContent = "Consultando...";
       lastAssistantAnswer = "";
       $("copyLastAnswerBtn").disabled = true;
-      $("copyLastAnswerBtn").textContent = "Copiar ultima respuesta";
+      $("copyLastAnswerBtn").textContent = "Copiar última respuesta";
 
       const userBubble = appendBubble("user", query);
       userBubble.scrollIntoView({ block: "end" });
@@ -1937,6 +1987,39 @@
     $("questionInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
         askQuestion().catch((err) => appendBubble("assistant", err.message));
+      }
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const dropZone = $("dropZone");
+      const fileInput = $("fileInput");
+
+      if (dropZone && fileInput) {
+        dropZone.addEventListener("click", () => fileInput.click());
+
+        dropZone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          dropZone.classList.add("dragover");
+        });
+
+        dropZone.addEventListener("dragleave", () => {
+          dropZone.classList.remove("dragover");
+        });
+
+        dropZone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          dropZone.classList.remove("dragover");
+          if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            uploadFile().catch((err) => setStatus("uploadStatus", err.message, true));
+          }
+        });
+
+        fileInput.addEventListener("change", () => {
+          if (fileInput.files.length > 0) {
+            uploadFile().catch((err) => setStatus("uploadStatus", err.message, true));
+          }
+        });
       }
     });
 
