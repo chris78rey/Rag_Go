@@ -1621,8 +1621,13 @@
 
       $("uploadStatus").textContent = data.message || "Procesando...";
       setProgress("uploadProgressTrack", "uploadProgressFill", "uploadProgressNote", 0, "Preparando...", true);
-      await waitTask(data.task_id, "uploadStatus", "uploadProgressTrack", "uploadProgressFill", "uploadProgressNote");
-      $("fileInput").value = "";
+      try {
+        await waitTask(data.task_id, "uploadStatus", "uploadProgressTrack", "uploadProgressFill", "uploadProgressNote");
+        $("fileInput").value = "";
+      } catch (err) {
+        setProgress("uploadProgressTrack", "uploadProgressFill", "uploadProgressNote", null);
+        throw new Error(`No se pudo completar la carga: ${err.message}`);
+      }
     }
 
     async function uploadText() {
@@ -1645,9 +1650,14 @@
 
       $("textUploadStatus").textContent = data.message || "Procesando...";
       setProgress("textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote", 0, "Preparando...", true);
-      await waitTask(data.task_id, "textUploadStatus", "textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote");
-      $("textTitleInput").value = "";
-      $("textBodyInput").value = "";
+      try {
+        await waitTask(data.task_id, "textUploadStatus", "textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote");
+        $("textTitleInput").value = "";
+        $("textBodyInput").value = "";
+      } catch (err) {
+        setProgress("textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote", null);
+        throw new Error(`No se pudo completar el procesamiento del texto: ${err.message}`);
+      }
     }
 
     async function askQuestion() {
