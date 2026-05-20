@@ -852,7 +852,7 @@
         <div class="panel-body stack">
           <div id="dropZone" class="drop-zone">
             <p style="margin: 0 0 4px; font-weight: 600; color: var(--accent);">Arrastra tus archivos aquí o haz clic para examinar</p>
-            <span class="small">Soporta PDF, TXT y MD según límites de tu plan</span>
+            <span id="dropZoneHint" class="small">Soporta PDF, TXT y MD según límites de tu plan</span>
             <input id="fileInput" type="file" class="hidden" />
           </div>
           <button id="uploadBtn" class="hidden">Subir archivo</button>
@@ -1221,14 +1221,14 @@
         return {
           label: "Premium",
           usageLabel: "Ilimitadas",
-          uploadLimitMb: 600,
+          uploadLimitMb: 150,
           usageHint: "Consultas ilimitadas",
         };
       }
       return {
         label: "Normal",
         usageLabel: "50 por dia",
-        uploadLimitMb: 100,
+        uploadLimitMb: 50,
         usageHint: "50 consultas por dia",
       };
     }
@@ -1267,6 +1267,9 @@
       $("overviewUsage").textContent = `${usageText} (${usageNote})`;
       $("overviewUploadLimit").textContent = `${plan.uploadLimitMb} MB`;
       $("overviewNextStep").textContent = getNextStepLabel();
+      if ($("dropZoneHint")) {
+        $("dropZoneHint").textContent = `Soporta PDF, TXT y MD (Máximo ${plan.uploadLimitMb} MB para tu cuenta ${plan.label})`;
+      }
 
       const banner = $("subscriptionBanner");
       if (!user.subscription_expires_at) {
