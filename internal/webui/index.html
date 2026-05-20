@@ -1768,7 +1768,7 @@
           try {
             metadata = JSON.parse(dataText);
             const fuentes = Array.isArray(metadata.fuentes) ? metadata.fuentes.join(", ") : "-";
-            $("chatMeta").textContent = `Párrafos consultados: ${metadata.fragmentos_recuperados || metadata.Fragments || 0} | Archivos base: ${fuentes} | Nivel de coincidencia: ${metadata.calidad_contexto || metadata.ContextQuality || "-"}`;
+            $("chatMeta").textContent = `Documentos consultados: ${metadata.fragmentos_recuperados || metadata.Fragments || 0} | Archivos base: ${fuentes} | Nivel de coincidencia: ${metadata.calidad_contexto || metadata.ContextQuality || "-"}`;
           } catch {
             $("chatMeta").textContent = "Se recibio metadata";
           }

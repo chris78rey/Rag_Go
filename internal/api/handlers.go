@@ -1004,20 +1004,20 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		if res.Section != "" {
 			sectionInfo = " | Sección: " + res.Section
 		}
-		fmt.Fprintf(&contextBuilder, "[Fragmento %d | %s%s]: %s\n\n", i+1, res.Filename, sectionInfo, res.Text)
+		fmt.Fprintf(&contextBuilder, "[Fuente %d | %s%s]: %s\n\n", i+1, res.Filename, sectionInfo, res.Text)
 	}
 
-	systemPrompt := `Eres un auditor experto. Responde ÚNICAMENTE basándote en los fragmentos proporcionados.
-PRESTA ATENCIÓN a la SECCIÓN de cada fragmento: reglas de diferentes secciones aplican a contextos distintos.
-No mezcles reglas de una sección con otra. Si un fragmento pertenece a "Sala de Alta Complejidad" 
-y otro a "Quirófano General", son normas diferentes y debes usar la correcta según el caso.
-Si la respuesta no está en los fragmentos, indícalo sin inventar.
-Responde en español con una estructura ordenada y fácil de copiar:
+	systemPrompt := `Eres un auditor experto. Responde unicamente basandote en la informacion proporcionada.
+Presta atencion a la seccion de cada fuente: reglas de diferentes secciones aplican a contextos distintos.
+No mezcles reglas de una seccion con otra. Si una fuente pertenece a "Sala de Alta Complejidad" y otra a "Quirófano General", usa la correcta segun el caso.
+Si la respuesta no esta en la informacion proporcionada, indicalo sin inventar.
+Responde en español con una estructura ordenada y facil de copiar:
 1. Respuesta directa.
 2. Desarrollo con los puntos relevantes.
-3. Secciones o fragmentos consultados.
+3. Documentos consultados.
 4. Observaciones o limitaciones, si aplica.
-Usa viñetas cuando haya varios elementos y evita mezclar ideas en un solo párrafo. Cita la sección del tarifario que aplica.`
+Usa viñetas cuando haya varios elementos y evita mezclar ideas en un solo párrafo.
+No uses la palabra "fragmento" en la respuesta al usuario; prefiere "fuente", "documento" o "seccion" segun corresponda.`
 
 	userPrompt := fmt.Sprintf(`Contexto de documentos:
 %s
