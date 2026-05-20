@@ -6,6 +6,7 @@ services:
         condition: service_started
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?define_OPENROUTER_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     volumes:
       - uploads:/app/uploads
       - data:/app/data

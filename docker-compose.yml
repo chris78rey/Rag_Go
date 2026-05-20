@@ -5,6 +5,7 @@ services:
       - "8080:8080"
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?define_OPENROUTER_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     depends_on:
       qdrant:
         condition: service_started

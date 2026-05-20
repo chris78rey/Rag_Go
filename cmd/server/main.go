@@ -21,7 +21,9 @@ import (
 	"github.com/codex/semantic-rag-go/internal/document"
 	"github.com/codex/semantic-rag-go/internal/embeddings"
 	"github.com/codex/semantic-rag-go/internal/llm"
+	"github.com/codex/semantic-rag-go/internal/rag"
 	"github.com/codex/semantic-rag-go/internal/task"
+	"github.com/codex/semantic-rag-go/internal/telegrambot"
 	"github.com/codex/semantic-rag-go/internal/vectorstore"
 	"github.com/codex/semantic-rag-go/internal/webui"
 )
@@ -70,6 +72,8 @@ func main() {
 	defer vsClient.Close()
 
 	taskMgr := task.NewManager()
+	topK := envUint64("TOP_K", 10)
+	chatSvc := rag.NewService(db.Pool, authSvc, embClient, llmClient, vsClient, topK)
 
 	mux := http.NewServeMux()
 
@@ -87,8 +91,9 @@ func main() {
 		embClient,
 		llmClient,
 		vsClient,
+		chatSvc,
 		uploadDir,
-		envUint64("TOP_K", 10),
+		topK,
 	)
 	apiServer.RegisterRoutes(mux, authMw, adminMw)
 
@@ -119,6 +124,16 @@ func main() {
 	addr := ":" + port
 	slog.Info("servidor_iniciado", "addr", addr, "web", "embedded", "uploads", uploadDir)
 
+	runCtx, cancelRun := context.WithCancel(context.Background())
+	defer cancelRun()
+
+	if telegramBotToken := strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")); telegramBotToken != "" {
+		go func() {
+			telegrambot.New(telegramBotToken, chatSvc).Run(runCtx)
+		}()
+		slog.Info("telegram_bot_iniciado")
+	}
+
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           withCORS(mux),
@@ -138,6 +153,7 @@ func main() {
 	<-quit
 
 	slog.Info("apagando_servidor...")
+	cancelRun()
 
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()

@@ -18,6 +18,7 @@ import (
 	"github.com/codex/semantic-rag-go/internal/document"
 	"github.com/codex/semantic-rag-go/internal/embeddings"
 	"github.com/codex/semantic-rag-go/internal/llm"
+	"github.com/codex/semantic-rag-go/internal/rag"
 	"github.com/codex/semantic-rag-go/internal/task"
 	"github.com/codex/semantic-rag-go/internal/vectorstore"
 	"github.com/google/uuid"
@@ -33,6 +34,7 @@ type Server struct {
 	embClient *embeddings.Client
 	llmClient *llm.Client
 	vsClient  *vectorstore.Client
+	chatSvc   *rag.Service
 	uploadDir string
 	topK      uint64
 }
@@ -47,6 +49,7 @@ func NewServer(
 	embClient *embeddings.Client,
 	llmClient *llm.Client,
 	vsClient *vectorstore.Client,
+	chatSvc *rag.Service,
 	uploadDir string,
 	topK uint64,
 ) *Server {
@@ -59,6 +62,7 @@ func NewServer(
 		embClient: embClient,
 		llmClient: llmClient,
 		vsClient:  vsClient,
+		chatSvc:   chatSvc,
 		uploadDir: uploadDir,
 		topK:      topK,
 	}
@@ -817,7 +821,12 @@ func (s *Server) handleUsageToday(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
 	planCode := auth.NormalizePlanCode(auth.GetPlanCode(r.Context()))
 
-	count := s.getTodayQueryCount(r.Context(), userID)
+	count := 0
+	if s.chatSvc != nil {
+		count = s.chatSvc.TodayQueryCount(r.Context(), userID)
+	} else {
+		count = s.getTodayQueryCount(r.Context(), userID)
+	}
 
 	resp := UsageResponse{
 		QueryCount:  count,
@@ -852,6 +861,59 @@ type ChatMetadata struct {
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
+	if s.chatSvc != nil {
+		var req ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "La consulta debe incluir un texto"})
+			return
+		}
+
+		ctx := r.Context()
+		prepared, err := s.chatSvc.PrepareChat(ctx, userID, req.Query)
+		switch {
+		case err == nil:
+		case errors.Is(err, rag.ErrEmptyQuery):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "La consulta no puede estar vacia"})
+			return
+		case errors.Is(err, rag.ErrSubscriptionExpired):
+			writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "Tu suscripcion ha expirado. Por favor, renueva para continuar usando el servicio."})
+			return
+		case errors.Is(err, rag.ErrDailyLimitExceeded):
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "Limite diario de consultas alcanzado. Espera hasta manana o actualiza tu plan."})
+			return
+		default:
+			slog.Error("error_preparando_chat", "user_id", userID, "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Error preparando la consulta"})
+			return
+		}
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming no soportado"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		metaJSON, _ := json.Marshal(prepared.Metadata)
+		fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metaJSON)
+		flusher.Flush()
+
+		fullResponse, err := s.chatSvc.GenerateAnswer(ctx, prepared, w)
+		if err != nil {
+			slog.Error("error_generacion_llm", "error", err)
+			errJSON, _ := json.Marshal(map[string]string{"error": err.Error()})
+			fmt.Fprintf(w, "event: error\ndata: %s\n\n", errJSON)
+			flusher.Flush()
+			return
+		}
+
+		slog.Info("chat_completado", "user_id", userID, "query_len", len(req.Query), "response_len", len(fullResponse))
+		return
+	}
+
 	if s.isSubscriptionExpired(r.Context(), userID) {
 		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "Tu suscripcion ha expirado. Por favor, renueva para continuar usando el servicio."})
 		return
