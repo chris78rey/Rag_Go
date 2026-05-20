@@ -1622,6 +1622,7 @@
       $("uploadStatus").textContent = data.message || "Procesando...";
       setProgress("uploadProgressTrack", "uploadProgressFill", "uploadProgressNote", 0, "Preparando...", true);
       await waitTask(data.task_id, "uploadStatus", "uploadProgressTrack", "uploadProgressFill", "uploadProgressNote");
+      $("fileInput").value = "";
     }
 
     async function uploadText() {
@@ -1645,6 +1646,8 @@
       $("textUploadStatus").textContent = data.message || "Procesando...";
       setProgress("textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote", 0, "Preparando...", true);
       await waitTask(data.task_id, "textUploadStatus", "textUploadProgressTrack", "textUploadProgressFill", "textUploadProgressNote");
+      $("textTitleInput").value = "";
+      $("textBodyInput").value = "";
     }
 
     async function askQuestion() {
